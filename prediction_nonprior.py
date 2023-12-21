@@ -28,7 +28,7 @@ class FCN(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(48359, 8000)
         self.fc2 = nn.Linear(8000, 2000)
-        self.fc3 = nn.Linear(2000, 10)
+        self.fc3 = nn.Linear(2000, 6)
         self.leaky = nn.LeakyReLU(0.05)
         
         
@@ -185,7 +185,7 @@ class NonPriorTraining:
 
             if save_checkpoint:
                 Path(CHECKPOINTS_PATH).mkdir(parents=True, exist_ok=True)
-                torch.save(self.fcn.state_dict(), str(CHECKPOINTS_PATH + 'checkpoint_nonprior_epoch{}.pth'.format(epoch)))
+                torch.save(self.fcn.state_dict(), str(CHECKPOINTS_PATH + '/checkpoint_nonprior_epoch{}.pth'.format(epoch)))
                 #logging.info(f'Checkpoint {epoch} saved!')
 
 if __name__ == '__main__':
