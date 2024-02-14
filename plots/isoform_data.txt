@@ -1,0 +1,7 @@
+Maximal number of isoforms: 
+27
+AT4G30820
+
+Mean value and standard deviation: 
+1.748653046465377
+1.3640247926639821

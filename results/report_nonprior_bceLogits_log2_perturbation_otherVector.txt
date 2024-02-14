@@ -1,0 +1,20 @@
+              precision    recall  f1-score   support
+
+           0       0.77      0.82      0.80        40
+           1       0.61      0.64      0.62        91
+           2       0.80      0.72      0.76        85
+           3       0.67      1.00      0.80         8
+           4       0.76      0.71      0.73        31
+
+    accuracy                           0.71       255
+   macro avg       0.72      0.78      0.74       255
+weighted avg       0.72      0.71      0.71       255
+
+--  --  --  -  --
+33   7   0  0   0
+ 8  58  14  4   7
+ 0  24  61  0   0
+ 0   0   0  8   0
+ 2   6   1  0  22
+--  --  --  -  --
+chemical stress	control	environmental stress	mechanical stress	mutant

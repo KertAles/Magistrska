@@ -20,7 +20,6 @@ tpm_table = pd.read_table(TPM_PATH)
 
 print('blah')
 
-"""
 nodes_table = pd.read_table(NODES_ANNOT_PATH, lineterminator='\n')
 conn_table = pd.read_table(INTERACTIONS_ANNOT_PATH)
 
@@ -51,8 +50,6 @@ ax1 = plt.subplot(1,1,1)
 
 
 nx.draw_spring(G, node_size=30, node_color=node_cols, label=uniques, ax=ax1)
-
-"""
 
 
 

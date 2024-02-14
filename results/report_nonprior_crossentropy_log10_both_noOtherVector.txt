@@ -1,0 +1,42 @@
+              precision    recall  f1-score   support
+
+           0       1.00      0.80      0.89         5
+           1       0.98      1.00      0.99       140
+           2       1.00      1.00      1.00        30
+           3       1.00      1.00      1.00         9
+           4       0.00      0.00      0.00         2
+           5       1.00      1.00      1.00        69
+
+    accuracy                           0.99       255
+   macro avg       0.83      0.80      0.81       255
+weighted avg       0.98      0.99      0.98       255
+
+-  ---  --  -  -  --
+4    1   0  0  0   0
+0  140   0  0  0   0
+0    0  30  0  0   0
+0    0   0  9  0   0
+0    2   0  0  0   0
+0    0   0  0  0  69
+-  ---  --  -  -  --
+mature_flower	mature_leaf	mature_root	seed	senescence	young_seedling
+              precision    recall  f1-score   support
+
+           0       0.78      0.90      0.84        40
+           1       0.67      0.60      0.64        91
+           2       0.79      0.80      0.80        85
+           3       0.67      1.00      0.80         8
+           4       0.72      0.68      0.70        31
+
+    accuracy                           0.74       255
+   macro avg       0.73      0.80      0.75       255
+weighted avg       0.73      0.74      0.73       255
+
+--  --  --  -  --
+36   4   0  0   0
+ 8  55  17  4   7
+ 0  16  68  0   1
+ 0   0   0  8   0
+ 2   7   1  0  21
+--  --  --  -  --
+chemical stress	control	environmental stress	mechanical stress	mutant
