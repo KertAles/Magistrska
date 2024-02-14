@@ -5,8 +5,8 @@ Created on Tue Feb 13 18:46:38 2024
 @author: alesk
 """
 
-from predict_nonprior import predict_model
-from training_nonprior import NonPriorTraining
+from predict import predict_model
+from training import NonPriorTraining
 from global_values import MODELS_PATH, CHECKPOINTS_PATH, JOINED_DATA_PATH_GROUPED, RESULTS_PATH
 
 losses = ['crossentropy', 'focal', 'bceLogits']

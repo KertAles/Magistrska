@@ -8,7 +8,7 @@ Created on Sun Dec 17 17:40:02 2023
 
 from sklearn.metrics import confusion_matrix
 from sklearn import metrics
-from training_nonprior import FCN
+from training import FCN
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader, random_split
