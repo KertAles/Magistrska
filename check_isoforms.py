@@ -15,9 +15,10 @@ from sklearn import preprocessing
 
 import seaborn as sns
 
-from global_values import JOINED_DATA_PATH
+import global_values as gv
 
-tpm_table = pd.read_table(JOINED_DATA_PATH)
+tpm_table = pd.read_table(gv.JOINED_DATA)
+tpm_table.set_index('SRR_accession', inplace=True)
 #tpm_table.to_csv('joined_tpm.tsv', sep="\t") 
 
 tpm_table.drop("idx", axis=1, inplace=True)

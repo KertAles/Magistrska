@@ -12,12 +12,13 @@ from torch.utils.data import Dataset
 import pandas as pd
 from sklearn import preprocessing
 from matplotlib import pyplot as plt
+import global_values as gv
 
-from global_values import JOINED_DATA_PATH_CKN
 
-tpm_path = JOINED_DATA_PATH_CKN
+tpm_table = pd.read_table(gv.GROUPED_DATA, index_col=0)
+#tpm_table.set_index('SRR_accession', inplace=True)
 
-tpm_table = pd.read_table(tpm_path)
+tpm_table = tpm_table[tpm_table['tissue_super'] != 'senescence']
 
 tissues_col = tpm_table.loc[:, tpm_table.columns == "tissue_super"]
 tissues_col = tissues_col.values

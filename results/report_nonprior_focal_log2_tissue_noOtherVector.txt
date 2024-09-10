@@ -1,22 +1,18 @@
               precision    recall  f1-score   support
 
-           0       1.00      0.60      0.75         5
-           1       0.97      1.00      0.99       140
-           2       1.00      1.00      1.00        30
-           3       1.00      1.00      1.00         9
-           4       0.00      0.00      0.00         2
-           5       1.00      1.00      1.00        69
+           1       0.15      0.28      0.19        25
+           2       0.00      0.00      0.00         0
+           5       0.15      0.20      0.17        20
+           6       0.00      0.00      0.00        58
 
-    accuracy                           0.98       255
-   macro avg       0.83      0.77      0.79       255
-weighted avg       0.98      0.98      0.98       255
+    accuracy                           0.11       103
+   macro avg       0.07      0.12      0.09       103
+weighted avg       0.07      0.11      0.08       103
 
--  ---  --  -  -  --
-3    2   0  0  0   0
-0  140   0  0  0   0
-0    0  30  0  0   0
-0    0   0  9  0   0
-0    2   0  0  0   0
-0    0   0  0  0  69
--  ---  --  -  -  --
-mature_flower	mature_leaf	mature_root	seed	senescence	young_seedling
+--  --  --  -
+ 7  18   0  0
+ 0   0   0  0
+16   0   4  0
+25  11  22  0
+--  --  --  -
+mature_flower	mature_leaf	mature_root	mature_seed	seed_seed	young_seed	young_seedling

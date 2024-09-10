@@ -7,9 +7,9 @@ Created on Mon Jan 22 18:37:45 2024
 
 import numpy as np
 import matplotlib.pyplot as plt
-from global_values import ISOFORM_COUNT_PATH
+import global_values as gv
 
-isoform_file = open(ISOFORM_COUNT_PATH, "r")
+isoform_file = open(gv.ISOFORM_COUNT_PATH, "r")
 isoform_count = {}
 isoform_list = []
 for line in isoform_file:
@@ -37,10 +37,11 @@ plt.figure(figsize=(10,6))
 plt.title('Distribution of number of isoforms')
 n, bins, patches = plt.hist(isoform_list, bins=26)
 plt.show()
-
+"""
 isoform_list_cut = list(filter(lambda a: a not in [1, 2, 3, 4, 5], isoform_list))
 
 plt.figure(figsize=(10,6))
 plt.title('Distribution of number of isoforms without numbers <6')
 n, bins, patches = plt.hist(isoform_list_cut, bins=21)
 plt.show()
+"""

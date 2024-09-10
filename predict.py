@@ -8,63 +8,138 @@ Created on Sun Dec 17 17:40:02 2023
 
 from sklearn.metrics import confusion_matrix
 from sklearn import metrics
-from training import FCN
+from training import FCN, FCN_CKN
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader, random_split
 
-from global_values import MODELS_PATH, JOINED_DATA_PATH, JOINED_DATA_PATH_GROUPED, RESULTS_PATH, ISOFORM_COUNT_PATH
+import global_values as gv
 from load_tpm_data import NonPriorData
 import numpy as np
 
 from tabulate import tabulate
 
-def get_model_identifier(loss, transformation, target, otherClass, split_isoforms) :
-    return f'{"splitIsoforms" if split_isoforms else "nonprior"}_{loss}_{transformation}_{target}{"_otherVector" if otherClass else "_noOtherVector"}'
+def get_model_identifier(loss, transformation, target, otherClass, split_isoforms, special_id='', model_type='baseline') :
+    return f'{model_type}_{"splitIsoforms_" if split_isoforms else "_"}{special_id}_{loss}_{transformation}_{target}{"_otherVector" if otherClass else "_noOtherVector"}'
 
-def predict_model(data_path, loss='crossentropy', transformation='log2', target='both', include_other_class=False, split_isoforms=False) :
+def predict_model(data_path, metadata_path=None, split_batches=True, model_type='baseline', loss='crossentropy', transformation='log2', target='both', include_other_class=False, split_isoforms=False, special_id='') :
     
-    isoforms_file = open(ISOFORM_COUNT_PATH, 'r')
-    isoforms_count = []
+    isoforms_file = open(gv.ISOFORM_COUNT_PATH, 'r')
+    isoform_count = []
     
     if split_isoforms :
         for line in isoforms_file:
             num_isoforms = int(line.split('\t')[1])
-            isoforms_count.append(num_isoforms)
-    
-    if target == 'tissue' :
-        model = FCN(output_size=6, include_other_class=include_other_class, other_vector_size=5, isoforms_count=isoforms_count)
-    elif target == 'perturbation' :
-        model = FCN(output_size=5, include_other_class=include_other_class, other_vector_size=6, isoforms_count=isoforms_count)
-    elif target == 'both' :
-        model = FCN(output_size=11, include_other_class=False, isoforms_count=isoforms_count)
+            isoform_count.append(num_isoforms)
 
-    model_id = get_model_identifier(loss, transformation, target, include_other_class, split_isoforms)
+    model_id = get_model_identifier(loss, transformation, target, include_other_class, split_isoforms, special_id)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.load_state_dict(torch.load(f'{MODELS_PATH}/model_{model_id}.pt'))
+    
+    if split_batches :
+        test_file = open('test_batches.txt', 'r')
+        test_batches = []
+        
+        for batch in test_file:
+            test_batches.append(batch[:-1])
+            
+        dataset = NonPriorData(tpm_path=data_path,
+                               metadata_path=metadata_path,
+                               transformation=transformation,
+                               target='both',
+                               batches=test_batches)  
+    else :
+        if include_other_class :
+            dataset = NonPriorData(tpm_path=data_path,
+                                   metadata_path=metadata_path,
+                                   transformation=transformation,
+                                   target='both')
+        else :
+            dataset = NonPriorData(tpm_path=data_path,
+                                   metadata_path=metadata_path,
+                                   transformation=transformation,
+                                   target=target)
+        
+        val_percent = 0.2
+        
+        n_val = int(len(dataset) * val_percent)
+        n_train = len(dataset) - n_val
+        train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+        
+        n_test = len(val_set)
+        val_set, test_set  = random_split(val_set, [n_test//2, n_test - n_test//2], generator=torch.Generator().manual_seed(0))
+        
+    input_size = dataset.num_of_genes
+    
+    if include_other_class or target == 'both' :
+        perturbation_output_size = len(dataset.onehot_perturbation.categories_[0])
+        tissue_output_size = len(dataset.onehot_tissue.categories_[0])
+        
+        num_of_tissues = 0
+        
+        model = FCN_CKN(output_size=perturbation_output_size + tissue_output_size, columns=dataset.columns.tolist())
+        num_of_tissues = tissue_output_size
+    else :
+        first_output_size = len(dataset.onehot.categories_[0])
+        second_output_size = 0
+        num_of_tissues = 0
+        
+        input_size = first_output_size
+        num_of_tissues = first_output_size
+
+    
+    if model_type == 'baseline' :
+        if include_other_class :
+            if target == 'tissue' :
+                model = FCN(input_size=input_size,
+                            output_size=tissue_output_size,
+                               include_other_class=include_other_class,
+                               other_vector_size=perturbation_output_size,
+                               isoforms_count=isoform_count)
+            elif target == 'perturbation' :
+                model = FCN(input_size=input_size,
+                            output_size=perturbation_output_size,
+                               include_other_class=include_other_class,
+                               other_vector_size=tissue_output_size,
+                               isoforms_count=isoform_count)
+        else :
+            if target != 'both' :
+                model = FCN(input_size=input_size,
+                            output_size=first_output_size,
+                               include_other_class=include_other_class,
+                               other_vector_size=second_output_size,
+                               isoforms_count=isoform_count)
+            elif target == 'both' :
+                model = FCN(input_size=input_size,
+                            output_size=perturbation_output_size + tissue_output_size,
+                               include_other_class=False,
+                               isoforms_count=isoform_count)
+                num_of_tissues = tissue_output_size
+    elif model_type == 'ckn' :
+        if include_other_class :
+            if target == 'tissue' :
+                model = FCN_CKN(output_size=tissue_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+               
+            elif target == 'perturbation' :
+                model = FCN_CKN(input_size=input_size,
+                               output_size=perturbation_output_size,
+                               include_other_class=include_other_class,
+                               other_vector_size=tissue_output_size,
+                               isoforms_count=isoform_count)
+        else :
+            if target != 'both' :
+                model = FCN_CKN(output_size=first_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+               
+            elif target == 'both' :
+                model = FCN_CKN(output_size=perturbation_output_size + tissue_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+                num_of_tissues = tissue_output_size
+
+    model.load_state_dict(torch.load(f'{gv.MODELS_PATH}/model_{model_id}.pt'))
     model.to(device=device)
     model.eval()
     
-    if include_other_class :
-        dataset = NonPriorData(tpm_path=data_path,
-                               transformation=transformation,
-                               target='both')
-    else :
-        dataset = NonPriorData(tpm_path=data_path,
-                               transformation=transformation,
-                               target=target)
-    
-    val_percent = 0.2
-    
-    n_val = int(len(dataset) * val_percent)
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
-    
-    n_test = len(val_set)
-    val_set, test_set  = random_split(val_set, [n_test//2, n_test - n_test//2], generator=torch.Generator().manual_seed(0))
     
     loader_args = dict(batch_size=1, num_workers=1, pin_memory=True)
-    test_loader = DataLoader(test_set, shuffle=False, drop_last=True, **loader_args)
+    test_loader = DataLoader(dataset, shuffle=False, drop_last=True, **loader_args)
     
     num_test_batches = len(test_loader)
     
@@ -118,13 +193,13 @@ def predict_model(data_path, loss='crossentropy', transformation='log2', target=
                 labels = (torch.max(torch.exp(class_true), 1)[1]).data.cpu().numpy()
                 y_true.extend(labels) # Save Truth
             else :
-                output_tissue = (torch.max(torch.exp(class_pred[:, :6]), 1)[1]).data.cpu().numpy()
+                output_tissue = (torch.max(torch.exp(class_pred[:, :num_of_tissues]), 1)[1]).data.cpu().numpy()
                 y_pred_tissue.extend(output_tissue) # Save Prediction
                 
                 labels_tissue = (torch.max(torch.exp(class_true_tissue[:, 0, :]), 1)[1]).data.cpu().numpy()
                 y_true_tissue.extend(labels_tissue) # Save Truth
                 
-                output_perturbation = (torch.max(torch.exp(class_pred[:, 6:]), 1)[1]).data.cpu().numpy()
+                output_perturbation = (torch.max(torch.exp(class_pred[:, num_of_tissues:]), 1)[1]).data.cpu().numpy()
                 y_pred_perturbation.extend(output_perturbation) # Save Prediction
                 
                 labels_perturbation = (torch.max(torch.exp(class_true_perturbation[:, 0, :]), 1)[1]).data.cpu().numpy()
@@ -135,7 +210,7 @@ def predict_model(data_path, loss='crossentropy', transformation='log2', target=
         cf_matrix = confusion_matrix(y_true, y_pred)
         class_report = metrics.classification_report(y_true, y_pred)
         
-        classification_report = open(f'{RESULTS_PATH}/report_{model_id}.txt', 'w')
+        classification_report = open(f'{gv.RESULTS_PATH}/report_{model_id}.txt', 'w')
         classification_report.write(class_report)
         classification_report.write('\n')
         classification_report.write(tabulate(cf_matrix))
@@ -165,7 +240,7 @@ def predict_model(data_path, loss='crossentropy', transformation='log2', target=
         class_report_tissue = metrics.classification_report(y_true_tissue, y_pred_tissue)
         class_report_perturbation = metrics.classification_report(y_true_perturbation, y_pred_perturbation)
         
-        classification_report = open(f'{RESULTS_PATH}/report_{model_id}.txt', 'w')
+        classification_report = open(f'{gv.RESULTS_PATH}/report_{model_id}.txt', 'w')
         classification_report.write(class_report_tissue)
         classification_report.write('\n')
         classification_report.write(tabulate(cf_matrix_tissue))
@@ -190,9 +265,10 @@ def predict_model(data_path, loss='crossentropy', transformation='log2', target=
     
 
 if __name__ == '__main__':
-    loss='crossentropy'
+    loss='focal'
     transformation = 'log2'
-    target = 'perturbation'
-    include_other_class=True
+    target = 'secondary_perturbation'
+    include_other_class=False
+    split_isoforms=False
     
-    predict_model(JOINED_DATA_PATH_GROUPED, loss=loss, transformation=transformation, target=target, include_other_class=include_other_class)
+    predict_model(gv.EXTENDED_GROUPED_DATA, loss=loss, transformation=transformation, target=target, include_other_class=include_other_class)

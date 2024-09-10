@@ -15,9 +15,10 @@ from sklearn import preprocessing
 
 import seaborn as sns
 
-from global_values import JOINED_DATA_PATH
+import global_values as gv
 
-tpm_table = pd.read_table(JOINED_DATA_PATH)
+tpm_table = pd.read_table(gv.JOINED_DATA)
+tpm_table.set_index('SRR_accession', inplace=True)
 #tpm_table.to_csv('joined_tpm.tsv', sep="\t") 
 
 tpm_table.drop("idx", axis=1, inplace=True)
@@ -36,7 +37,7 @@ data_raw = data_raw.values
 perturbation = perturbation_raw.values
 tissue = tissue_raw.values
 
-data_log = np.log10(data_raw + 1e-6)
+data_log = np.log1p(data_raw)
 
 label_tissue = preprocessing.LabelEncoder()
 label_perturbation = preprocessing.LabelEncoder()

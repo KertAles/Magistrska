@@ -12,35 +12,91 @@ from torch.utils.data import Dataset
 import pandas as pd
 from sklearn import preprocessing
 
-from global_values import JOINED_DATA_PATH
+import global_values as gv
 
 
 class NonPriorData(Dataset) :
     
-    def __init__(self, tpm_path, transformation='none', target='tissue', epsilon=1e-6):
-        tpm_table = pd.read_table(tpm_path)
+    def __init__(self, tpm_path, metadata_path=None, transformation='none', target='tissue', epsilon=1e-6, batches=[]):
+        tpm_table = pd.read_table(tpm_path, index_col=0)
+        #tpm_table.set_index('SRR_accession', inplace=True)
         #tpm_table.to_csv('joined_tpm.tsv', sep="\t") 
         self.transformation = transformation
         self.target = target
         
-        tpm_table.drop("idx", axis=1, inplace=True)
+        #tpm_table = tpm_table[tpm_table['perturbation_group'].notin(['control', 'chemical stress'])]
+        
+        if metadata_path is not None :
+            metadata_table = pd.read_table(metadata_path, index_col=1)
+            metadata_table = metadata_table.rename(columns={'SRAStudy' : 'sra_study'})
+            metadata_table = metadata_table[['perturbation_group', 'tissue_super', 'sra_study']]
+            tpm_table = metadata_table.join(tpm_table, how='inner')
+        #perturbations = tpm_table['perturbation_group']
+        #tpm_table['perturbation_group'] = tpm_table['perturbation_group'].apply(
+        #    lambda x: 'stressed' if 'control' not in x else x)
+        
+        if self.target != 'both' :
+            self.onehot = preprocessing.OneHotEncoder()
+            
+            if self.target == 'perturbation' :
+                self.onehot.fit(np.stack(tpm_table.loc[:, tpm_table.columns == "perturbation_group"].values).reshape(-1, 1))
+            elif self.target == 'tissue' :
+                self.onehot.fit(np.stack(tpm_table.loc[:, tpm_table.columns == "tissue_super"].values).reshape(-1, 1))
+            elif self.target == 'secondary_perturbation' :
+                self.onehot.fit(np.stack(tpm_table.loc[:, tpm_table.columns == "secondary_perturbation"].values).reshape(-1, 1))
+            
+            print(self.onehot.categories_)
+        else :
+            self.onehot_tissue = preprocessing.OneHotEncoder()
+            self.onehot_perturbation = preprocessing.OneHotEncoder()
+            
+            self.onehot_tissue.fit(np.stack(tpm_table.loc[:, tpm_table.columns == "tissue_super"].values).reshape(-1, 1))
+            self.onehot_perturbation.fit(np.stack(tpm_table.loc[:, tpm_table.columns == "perturbation_group"].values).reshape(-1, 1))
+            
+            print(self.onehot_tissue.categories_)
+            print(self.onehot_perturbation.categories_)
+        
+        max_val = tpm_table[tpm_table.columns.difference(['perturbation_group', 'tissue_super', 'secondary_perturbation', 'sra_study'])].max(axis=None)
+        min_val = tpm_table[tpm_table.columns.difference(['perturbation_group', 'tissue_super', 'secondary_perturbation', 'sra_study'])].min(axis=None)
+        max_val -= min_val
+        
+        if len(batches) > 0 :
+            tpm_table = tpm_table[tpm_table['sra_study'].isin(batches)]
         
         if self.target == 'perturbation' :
-            tpm_table.drop("tissue_super", axis=1, inplace=True)
             data_raw = tpm_table.loc[:, tpm_table.columns != "perturbation_group"]
             gt_raw = tpm_table.loc[:, tpm_table.columns == "perturbation_group"]
         elif self.target == 'tissue' :
-            tpm_table.drop("perturbation_group", axis=1, inplace=True)
             data_raw = tpm_table.loc[:, tpm_table.columns != "tissue_super"]
             gt_raw = tpm_table.loc[:, tpm_table.columns == "tissue_super"]
         elif self.target == 'both' :
             tissue_raw = tpm_table.loc[:, tpm_table.columns == "tissue_super"]
-            tpm_table.drop("tissue_super", axis=1, inplace=True)
             perturbation_raw = tpm_table.loc[:, tpm_table.columns == "perturbation_group"]
             data_raw = tpm_table.loc[:, tpm_table.columns != "perturbation_group"]
-
+        elif self.target == 'secondary_perturbation' :
+            tpm_table = tpm_table.drop(tpm_table[tpm_table['perturbation_group'] != 'environmental stress'].index)
+            data_raw = tpm_table.loc[:, tpm_table.columns != "secondary_perturbation"]
+            gt_raw = tpm_table.loc[:, tpm_table.columns == "secondary_perturbation"]
         else :
             print('INVALID TARGET')
+            
+        if 'sra_study' in data_raw.columns :
+            data_raw.drop("sra_study", axis=1, inplace=True)
+            
+        if 'tissue_super' in data_raw.columns :
+            data_raw.drop("tissue_super", axis=1, inplace=True)
+            
+        if 'perturbation_group' in data_raw.columns :
+            data_raw.drop("perturbation_group", axis=1, inplace=True)
+          
+        if 'secondary_perturbation' in data_raw.columns :
+            data_raw.drop("secondary_perturbation", axis=1, inplace=True)
+        
+        tpm_cols = pd.read_table('data/columns.tsv')
+        data_raw = data_raw[data_raw.columns.intersection(tpm_cols.columns)]
+        
+        self.num_of_genes = len(data_raw.columns)
+        self.columns = data_raw.columns
         
         data_raw = data_raw.values
         if self.target != 'both' :
@@ -49,10 +105,15 @@ class NonPriorData(Dataset) :
             tissue_raw = tissue_raw.values
             perturbation_raw = perturbation_raw.values
             
+        data_raw -= min_val
         if self.transformation == 'log2' :
-            data_raw = np.log2(data_raw + epsilon)
+            #mini = -4.0
+            #mini = np.min(data_raw)
+            data_raw = np.log1p(data_raw)
+            max_val = np.log1p(max_val)
         elif self.transformation == 'log10' :
-            data_raw = np.log10(data_raw + epsilon)
+            data_raw = np.log10(data_raw + 1)
+            max_val = np.log10(max_val + 1)
         elif self.transformation != 'none' :
             print('INVALID TRANSFORMATION')
             
@@ -60,28 +121,21 @@ class NonPriorData(Dataset) :
         self.data = np.stack(data_raw)
         
         if self.target != 'both' :
-            self.onehot = preprocessing.OneHotEncoder()
-            self.gt = self.onehot.fit_transform(np.stack(gt_raw).reshape(-1, 1)).todense()
-            print(self.onehot.categories_)
+            self.gt = self.onehot.transform(np.stack(gt_raw).reshape(-1, 1)).todense()
         else :
-            self.onehot_tissue = preprocessing.OneHotEncoder()
-            self.onehot_perturbation = preprocessing.OneHotEncoder()
-            
-            self.gt_tissues = self.onehot_tissue.fit_transform(np.stack(tissue_raw).reshape(-1, 1)).todense()
-            self.gt_perturbations = self.onehot_perturbation.fit_transform(np.stack(perturbation_raw).reshape(-1, 1)).todense()
-            
-            print(self.onehot_tissue.categories_)
-            print(self.onehot_perturbation.categories_)
+            self.gt_tissues = self.onehot_tissue.transform(np.stack(tissue_raw).reshape(-1, 1)).todense()
+            self.gt_perturbations = self.onehot_perturbation.transform(np.stack(perturbation_raw).reshape(-1, 1)).todense()
         print(np.max(self.data))
         print(np.min(self.data))
         
+        #max_val = np.max(self.data)
+        #max_val = 2.9
         if self.transformation == 'none' :
-            max_val = np.max(self.data)
             self.data /= max_val
         elif self.transformation == 'log10' :
-            self.data /= 6
+            self.data /= max_val
         elif self.transformation == 'log2' :
-            self.data /= 20
+            self.data /= max_val
     def __len__(self):
         return self.data.shape[0] 
         
@@ -97,5 +151,5 @@ class NonPriorData(Dataset) :
         return ret_data
     
 if __name__ == '__main__':
-    dataset = NonPriorData(JOINED_DATA_PATH, transformation='log10', target='both')
-    dataset.__getitem__(0)
+    dataset = NonPriorData(gv.GROUPED_DATA, transformation='log10', target='both')
+    item = dataset.__getitem__(0)
