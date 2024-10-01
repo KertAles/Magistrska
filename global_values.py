@@ -18,6 +18,9 @@ INTERACTIONS_CKN_ANNOT_PATH = 'data/CKN_conn.tsv'
 TPM_PATH = 'data/TPM_table.tsv'
 METADATA_PATH = 'data/short_metadata_table_16_11_22-added_age_group_supergroups.txt'
 
+METADATA_PROC_PATH = 'data/metadata_proc.tsv'
+
+
 # Gene "metadata"
 ISOFORM_COUNT_PATH = 'data/isoform_count.txt'
 GENES_IN_CKN_PATH = 'data/genes_CKN.txt'

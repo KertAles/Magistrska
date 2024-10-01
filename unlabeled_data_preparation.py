@@ -18,8 +18,7 @@ import global_values as gv
 
 
 allowed_tissues = ['young_seedling', 'seed',
-                   'mature_leaf', 'mature_root', 'mature_flower',
-                   'senescence']
+                   'mature_leaf', 'mature_root', 'mature_flower']
 
 allowed_strats = ['RNA-Seq']
 allowed_selecs = ['cDNA', 'RANDOM', 'PolyA', 'Oligo-dT']
@@ -59,23 +58,23 @@ metadata_table = metadata_table[metadata_table['experiment_library_selection'].i
 
 model_count = metadata_table['experiment_instrument_model'].value_counts()
 chosen_models = []
-
+"""
 for count, model in zip(model_count, model_count.index)  :
     if count > 100 :
         chosen_models.append(model)
 
 metadata_table = metadata_table[metadata_table['experiment_instrument_model'].isin(chosen_models)]
-
+"""
 
 batch_count = metadata_table['sra_study'].value_counts()
 chosen_batches = []
-
+"""
 for count, batch in zip(batch_count, batch_count.index)  :
     if count > 10 :
         chosen_batches.append(batch)
 
 metadata_table = metadata_table[metadata_table['sra_study'].isin(chosen_batches)]
-
+"""
 
 metadata_table.to_csv('./data/metadata_T.tsv', sep="\t")
 

@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import global_values as gv
 
+
 isoform_file = open(gv.ISOFORM_COUNT_PATH, "r")
 isoform_count = {}
 isoform_list = []
@@ -16,8 +17,7 @@ for line in isoform_file:
     name_gene = line.split('\t')[0]
     num_isoforms = int(line.split('\t')[1])
     isoform_count[name_gene] = num_isoforms
-    isoform_list.append(num_isoforms)
-    
+    isoform_list.append(num_isoforms)    
 
 maximum = max(isoform_count.values())
 keys = filter(lambda x:isoform_count[x] == maximum, isoform_count.keys())

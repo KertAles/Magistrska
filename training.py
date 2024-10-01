@@ -104,10 +104,10 @@ class FCN_CKN(nn.Module):
         x = self.do3(x)
         x = self.fc4(x)
         if tissues_size > 0 :
-            x = torch.cat([nn.Softmax(dim=1)(x[:, :tissues_size]),
-                           nn.Softmax(dim=1)(x[:, tissues_size:])], 1)
-        else :
-            x = nn.Softmax(dim=1)(x)
+            x = torch.cat([x[:, :tissues_size],
+                           x[:, tissues_size:]], 1)
+        #else :
+        #    x = nn.Softmax(dim=0)(x)
             
         return x
     
@@ -126,10 +126,10 @@ class FCN(nn.Module):
                 self.isoforms_fcs.append(nn.Linear(isoform, 1))
             input_size = num_of_isoforms
             
-        self.fc1 = nn.Linear(input_size, 40000)
-        self.bn1 = nn.BatchNorm1d(40000)
+        self.fc1 = nn.Linear(input_size, 512)
+        self.bn1 = nn.BatchNorm1d(512)
         self.do1 = nn.Dropout(p=dropout)
-        self.fc2 = nn.Linear(40000, 256)
+        self.fc2 = nn.Linear(512, 256)
         self.bn2 = nn.BatchNorm1d(256)
         self.do2 = nn.Dropout(p=dropout)
         self.fc3 = nn.Linear(256, 128)
@@ -171,10 +171,10 @@ class FCN(nn.Module):
         x = self.fc4(x)
         
         if tissues_size > 0 :
-            x = torch.cat([nn.Softmax(dim=1)(x[:, :tissues_size]),
-                           nn.Softmax(dim=1)(x[:, tissues_size:])], 1)
-        else :
-            x = nn.Softmax(dim=1)(x)
+            x = torch.cat([x[:, :tissues_size],
+                           x[:, tissues_size:]], 1)
+        #else :
+        #    x = nn.Softmax(dim=1)(x)
         
         return x
     
@@ -211,8 +211,8 @@ class NonPriorTraining:
         else :
             self.criterion = nn.BCEWithLogitsLoss()
         
-    def save_model(self) :
-        torch.save(self.fcn.state_dict(), f'{gv.MODELS_PATH}/model_{self.get_model_identifier()}.pt')
+    def save_model(self, fold=1) :
+        torch.save(self.fcn.state_dict(), f'{gv.MODELS_PATH}/model_{self.get_model_identifier()}_{str(fold)}.pt')
     
     def get_model_identifier(self) :
         return f'{self.model_type}_{"splitIsoforms_" if self.split_isoforms else "_"}{self.special_id}_{self.loss}_{self.transformation}_{self.target}{"_otherVector" if self.include_other_class else "_noOtherVector"}'
@@ -296,32 +296,37 @@ class NonPriorTraining:
 
     def train(self, data_path,
                   split_batches=True,
+                  train_batches = [],
+                  val_batches = [],
+                  test_batches = [],
                   metadata_path = None,
                   epochs: int = 10,
-                  batch_size: int = 28,
-                  learning_rate: float = 0.00025,
+                  batch_size: int = 32,
+                  learning_rate: float = 0.0025,
                   val_percent: float = 0.2,
                   save_checkpoint: bool = False) :
         # 1. Create dataset
         #dataset = get_set(dir_train)
 
         if split_batches :
-            train_file = open('train_batches.txt', 'r')
-            val_file = open('val_batches.txt', 'r')
-            test_file = open('test_batches.txt', 'r')
-            
-            train_batches = []
-            val_batches = []
-            test_batches = []
-            
-            for batch in train_file:
-                train_batches.append(batch[:-1])
+            if len(train_batches) == 0 or len(val_batches) == 0 or len(test_batches) == 0 :
+                train_file = open('train_batches.txt', 'r')
+                val_file = open('val_batches.txt', 'r')
+                test_file = open('test_batches.txt', 'r')
                 
-            for batch in val_file :
-                val_batches.append(batch[:-1])
+                train_batches = []
+                val_batches = []
+                test_batches = []
                 
-            for batch in test_file :
-                test_batches.append(batch[:-1])
+                for batch in train_file:
+                    train_batches.append(batch[:-1])
+                    
+                for batch in val_file :
+                    val_batches.append(batch[:-1])
+                    
+                for batch in test_file :
+                    test_batches.append(batch[:-1])
+            
                 
             train_set = NonPriorData(tpm_path=data_path,
                                      metadata_path=metadata_path,
@@ -341,6 +346,7 @@ class NonPriorTraining:
                                       batches=test_batches)
             
             dataset = train_set
+            n_train = len(dataset)
         else :
             if self.include_other_class :
                 dataset = NonPriorData(tpm_path=data_path,
@@ -379,6 +385,7 @@ class NonPriorTraining:
                     
             class_sum = np.sum(class_counts)
             class_counts /= class_sum
+            class_counts = 1 - class_counts
         else :
             perturbation_counts = np.zeros(len(dataset.onehot_perturbation.categories_[0]))
             tissue_counts = np.zeros(len(dataset.onehot_tissue.categories_[0]))
@@ -396,6 +403,8 @@ class NonPriorTraining:
             tissue_sum = np.sum(tissue_counts)
             tissue_counts /= tissue_sum
             
+            tissue_counts = 1 - tissue_counts
+            perturbation_counts = 1 - perturbation_counts
             
         if self.include_other_class or self.target == 'both' :
             perturbation_output_size = len(dataset.onehot_perturbation.categories_[0])
@@ -531,7 +540,7 @@ class NonPriorTraining:
                         class_preds = self.fcn(tpm_data)
                         
                     if self.target != 'both' :
-                        loss = self.criterion(class_preds, class_true, weight=weight)
+                        loss = nn.functional.cross_entropy(class_preds, class_true, weight=weight)
                         if self.loss == 'focal' :
                             pt = torch.exp(-loss)
                             loss = ((1-pt)**self.gamma * loss).mean() 
@@ -539,8 +548,8 @@ class NonPriorTraining:
                         class_pred_tissue = class_preds[:, :self.num_of_tissues]
                         class_pred_perturbation = class_preds[:, self.num_of_tissues:]
                         
-                        loss_tissue = self.criterion(class_pred_tissue, class_true_tissue)
-                        loss_perturbation = self.criterion(class_pred_perturbation, class_true_perturbation)
+                        loss_tissue = nn.functional.cross_entropy(class_pred_tissue, class_true_tissue)
+                        loss_perturbation = nn.functional.cross_entropy(class_pred_perturbation, class_true_perturbation, weight=weight_perturbation)
                         
                         if self.loss == 'focal' :
                             pt = torch.exp(-loss_tissue)
@@ -597,10 +606,11 @@ class NonPriorTraining:
     
     def predict_model(self, dataset, dataset_oh, loss='crossentropy', transformation='log2', target='both', include_other_class=False, split_isoforms=False, special_id='') :
             
-            isoforms_file = open(gv.ISOFORM_COUNT_PATH, 'r')
+            
             isoform_count = []
             
             if split_isoforms :
+                isoforms_file = open(gv.ISOFORM_COUNT_PATH, 'r')
                 for line in isoforms_file:
                     num_isoforms = int(line.split('\t')[1])
                     isoform_count.append(num_isoforms)

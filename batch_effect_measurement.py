@@ -26,7 +26,7 @@ def measure_batch_effect(tpm_table, categories, categories_count, category_name,
     
     print('Calculating distances.')
     
-    distances = pdist(tpm_table.values, metric='euclidean')
+    distances = pdist(tpm_table.values, metric='cosine')
     dist_matrix = squareform(distances)
     
     print('Calculated distances.')
@@ -90,25 +90,29 @@ def measure_batch_effect(tpm_table, categories, categories_count, category_name,
 if __name__ == '__main__':
     
     measurements = [
-            {'tpm_path' : './data/vae_transformed5.tsv', 'meta_path' : './data/metadata_proc.tsv'},
-            {'tpm_path' : './data/vae_latent(6).tsv', 'meta_path' : './data/metadata_proc.tsv'},
-            #{'tpm_path' : gv.VAE_GROUPED_DATA, 'meta_path' : None},
-            #{'tpm_path' : gv.GROUPED_DATA, 'meta_path' : None},
-            #{'tpm_path' : gv.PROPORTIONAL_DATA_CONTROLS, 'meta_path' : None},
-            #{'tpm_path' : './data/pycombat_transformed.tsv', 'meta_path' : None},
-            #{'tpm_path' : './data/power-scaled.tsv', 'meta_path' : gv.GROUPED_DATA},
-            #{'tpm_path' : './data/quantile-scaled.tsv', 'meta_path' : './data/metadata_proc.tsv'},
-            #{'tpm_path' : './data/robust-scaled.tsv', 'meta_path' : gv.GROUPED_DATA},
-            #{'tpm_path' : './data/quantile-transformed.tsv', 'meta_path' : gv.GROUPED_DATA},
-            #{'tpm_path' : './data/quantile-transformed-guassian.tsv', 'meta_path' : gv.GROUPED_DATA},
-            #{'tpm_path' : './data/limma_test.tsv', 'meta_path' : './data/metadata_limma_test.tsv'},
-            
-        ]
-    f = open('./data/BE_measures.txt', 'a')
+            #{'tpm_path' : gv.GROUPED_DATA, 'T' : False, 'meta_path' : None},
+            #{'tpm_path' : './data/athaliana_annotated.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            #{'tpm_path' : './data/combat.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv'},
+            #{'tpm_path' : './data/combat_seq.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv'},
+            #{'tpm_path' : './data/vae_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            #{'tpm_path' : './data/vae_latent.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'}, 
+            #{'tpm_path' : './data/vae_cov_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            #{'tpm_path' : './data/vae_cov_latent.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'}, 
+            {'tpm_path' : './data/vae_cov_transformed_smol.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            ]
+    f = open('./data/BE_measures_cosine.txt', 'a')
     chosen_rank = 2
     for measurement in measurements :
         tpm_table = pd.read_table(measurement['tpm_path'], index_col=0)
-        tpm_table.dropna(inplace=True)
+        #tpm_table.dropna(inplace=True)
+        
+        if measurement['T'] :
+            tpm_table = tpm_table.T
+        
+        #if measurement['meta_path'] is not None:
+        #    metadata_table = pd.read_table(measurement['meta_path'], index_col=0)
+            
+        #    tpm_table = tpm_table.join(metadata_table, how='inner')
         
         """
         batch_count = tpm_table['sra_study'].value_counts()
@@ -125,6 +129,7 @@ if __name__ == '__main__':
         tpm_table = tpm_table[tpm_table['sra_study'].isin(chosen_batches)]
         tpm_table = tpm_table[tpm_table['perturbation_group'].isin(['control', 'chemical stress'])]
         """
+        """
         rank_file = open(gv.CKN_GENE_RANKS, 'r')
         genes_list = []
 
@@ -132,7 +137,7 @@ if __name__ == '__main__':
             gene_rank = int(line.split('\t')[1])
             if gene_rank <= chosen_rank :
                 genes_list.append(line.split('\t')[0])
-                      
+        """            
         
         if measurement['meta_path'] == None :
             perturbation_count = tpm_table['perturbation_group'].value_counts()
@@ -142,7 +147,7 @@ if __name__ == '__main__':
             tissue_count = tpm_table['tissue_super'].value_counts()
         else :
             metadata_table = pd.read_table(measurement['meta_path'], index_col=0)[['perturbation_group', 'tissue_super', 'sra_study']]
-            tpm_table = metadata_table.join(tpm_table, how='inner')
+            tpm_table = tpm_table.join(metadata_table, how='inner')
             
             perturbations = pd.DataFrame(tpm_table['perturbation_group']).copy()
             perturbation_count = perturbations['perturbation_group'].value_counts()

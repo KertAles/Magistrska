@@ -17,18 +17,18 @@ import seaborn as sns
 
 import global_values as gv
 
-tpm_table = pd.read_table(gv.JOINED_DATA)
-tpm_table.set_index('SRR_accession', inplace=True)
+tpm_table = pd.read_table(gv.GROUPED_DATA, index_col=0)
+#tpm_table.set_index('SRR_accession', inplace=True)
 #tpm_table.to_csv('joined_tpm.tsv', sep="\t") 
 
-tpm_table.drop("idx", axis=1, inplace=True)
+#tpm_table.drop("idx", axis=1, inplace=True)
 
 tpm_table.drop("tissue_super", axis=1, inplace=True)
 tpm_table.drop("perturbation_group", axis=1, inplace=True)
-f = open("isoform_count.txt", "a")
+f = open("data/isoform_count.txt", "a")
 
 checked_genes = []
-for name_isoform, values in tpm_table.iteritems():
+for name_isoform, values in tpm_table.items():
    name_gene = name_isoform.split('.')[0]
    if name_gene not in checked_genes :
        checked_genes.append(name_gene)

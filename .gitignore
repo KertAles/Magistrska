@@ -1,4 +1,6 @@
 __pycache__/
 data/
 models/
+results/
+plots/
 .pynb_checkpoints/

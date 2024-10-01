@@ -224,7 +224,7 @@ def plot_1(
             legend_kwargs_.update(legend_kwargs)
         ax.legend(handles=legend_handles, **legend_kwargs_)
 
-
+    ax.figure.savefig(f'{title}.png')
 
 def TSNE_plot(data, labels1, target_name1, labels2, target_name2) :
     tsne = manifold.TSNE()
@@ -261,68 +261,33 @@ def open_TSNE_plot(data, labels1, target_name1, labels2, target_name2) :
     #plot(embedding_pca_cosine, labels2[target_name2], labels1[target_name1])
 
 
-if __name__ == '__main__':
-    tpm_table = pd.read_table(gv.GROUPED_DATA, index_col=0)
-    #tpm_table.set_index('SRR_accession', inplace=True)
-    #tpm_table = pd.read_table('./data/athaliana_metadata.tsv', index_col=0)
-    #tpm_table = pd.read_table(gv.METADATA_PATH, index_col=0)
+def plot_tsne(data, labels1, target_name1, labels2, target_name2, labels3, target_name3):
+    embedding_pca_cosine = openTSNE.TSNE(
+    perplexity=30,
+    initialization="pca",
+    metric="cosine",
+    n_jobs=8,
+    random_state=3,
+    ).fit(data)
     
-    #exp_count = tpm_table['experiment_library_selection'].value_counts()
-    #instr_count = tpm_table['experiment_instrument_model'].value_counts()
-    
-    #tpm_table = tpm_table[tpm_table['tissue_super'].isin(['mature_leaf'])]
-    #tpm_table = tpm_table[tpm_table['perturbation_group'].isin(['control', 'chemical stress'])]
-    tpm_table = tpm_table[tpm_table['tissue_super'] != 'senescence']
-    tpm_table.dropna(inplace=True)
-    
-    batch_count = tpm_table['sra_study'].value_counts()
-    chosen_batches = []
+    plot_1(embedding_pca_cosine, labels1[target_name1], title='t-SNE plot of perturbation groups')
+    plot_1(embedding_pca_cosine, labels2[target_name2], title='t-SNE plot of tissue types')
+    plot_1(embedding_pca_cosine, labels3[target_name3], draw_legend=False, title='t-SNE plot of batches')
 
-    for batch in batch_count.index :
-        batch_data = tpm_table[tpm_table['sra_study'] == batch]
-        
-        if 'control' not in batch_data['perturbation_group'].unique() or 'chemical stress' not in batch_data['perturbation_group'].unique():
-            continue
-        
-        chosen_batches.append(batch)
-    
-    #tpm_table = tpm_table[tpm_table['sra_study'].isin(chosen_batches)]
-    #tpm_table = tpm_table[tpm_table['perturbation_group'].isin(['control', 'chemical stress'])]
-    
-    #tpm_table.to_csv('joined_tpm.tsv', sep="\t") 
-  
-    chosen_rank = 2
-    
-    rank_file = open(gv.CKN_GENE_RANKS, 'r')
-    genes_in_lcc = []
 
-    for line in rank_file:
-        gene_rank = int(line.split('\t')[1])
-        if gene_rank <= chosen_rank :
-            genes_in_lcc.append(line.split('\t')[0])
-            
-    batch_count = tpm_table['sra_study'].value_counts()
-    
-    #tpm_table = tpm_table.drop(tpm_table[tpm_table['perturbation_group'] != 'environmental stress'].index)
+def save_tsne(tpm_table, display_name) :
     
     perturbations = tpm_table.loc[:, tpm_table.columns == "perturbation_group"]
-    #scnd_perturbations = tpm_table.loc[:, tpm_table.columns == "secondary_perturbation"]
     tissues = tpm_table.loc[:, tpm_table.columns == "tissue_super"]
     sra_studies = tpm_table.loc[:, tpm_table.columns == "sra_study"]
     
     tpm_table.drop("tissue_super", axis=1, inplace=True)
     tpm_table.drop("perturbation_group", axis=1, inplace=True)
-    #tpm_table.drop("secondary_perturbation", axis=1, inplace=True)
     tpm_table.drop("sra_study", axis=1, inplace=True)
-    
-    #tpm_table = tpm_table.drop(columns=[col for col in tpm_table if col.split('.')[0] not in genes_in_lcc])
-    
+
     data_raw = tpm_table.values
-    
     data_log = np.log1p(data_raw)
-    
-    
-    
+    #data_log=data_raw
     
     embedding_pca_cosine = openTSNE.TSNE(
     perplexity=30,
@@ -332,16 +297,65 @@ if __name__ == '__main__':
     random_state=3,
     ).fit(data_log)
     
-    colors = ['grey', 'red', 'gold', 'lime', 'teal',
-              'blue', 'crimson', 'fuchsia', 'chocolate', 'yellow',
-              'darkgreen', 'cyan', 'royalblue', 'tomato', 'skyblue',
-              'thistle', 'indigo', 'olive', 'green', 'black', 'violet']
+    plot_1(embedding_pca_cosine, perturbations['perturbation_group'], title=f'{display_name} - t-SNE plot of perturbation groups')
+    plot_1(embedding_pca_cosine, tissues['tissue_super'], title=f'{display_name} - t-SNE plot of tissue types')
+    plot_1(embedding_pca_cosine, sra_studies['sra_study'], draw_legend=False, title=f'{display_name} - t-SNE plot of batches')
+
+if __name__ == '__main__':
+    measurements = [
+            #{'tpm_path' : gv.GROUPED_DATA, 'T' : False, 'meta_path' : None, 'display_name' : 'Unprocessed data'},
+            #{'tpm_path' : './data/athaliana_annotated.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'Unprocessed data 2'},
+            #{'tpm_path' : './data/combat.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'ComBat'},
+            #{'tpm_path' : './data/combat_seq.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'ComBat-seq'},
+            {'tpm_path' : './data/vae_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE'},
+            {'tpm_path' : './data/vae_cov_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE w covariates'},
+            #{'tpm_path' : './data/vae_smol_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE smol'},
+            #{'tpm_path' : './data/vae_cov_transformed_smol.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE smol w/ covariates'},
+            
+        ]
+
+    for measurement in measurements :
+        tpm_table = pd.read_table(measurement['tpm_path'], index_col=0)
+
+        
+        if measurement['T'] :
+            tpm_table = tpm_table.T
+             
+        
+        if measurement['meta_path'] == None :
+            perturbation_count = tpm_table['perturbation_group'].value_counts()
+            perturbations = pd.DataFrame(tpm_table['perturbation_group']).copy()
+            
+            tissues = pd.DataFrame(tpm_table['tissue_super']).copy()
+            tissue_count = tpm_table['tissue_super'].value_counts()
+        else :
+            metadata_table = pd.read_table(measurement['meta_path'], index_col=0)[['perturbation_group', 'tissue_super', 'sra_study']]
+            tpm_table = tpm_table.join(metadata_table, how='inner')
+            
+            #tpm_table.dropna(inplace=True)
+            
+            perturbations = pd.DataFrame(tpm_table['perturbation_group']).copy()
+            perturbation_count = perturbations['perturbation_group'].value_counts()
+            
+            tissues = pd.DataFrame(tpm_table['tissue_super']).copy()
+            tissue_count = tissues['tissue_super'].value_counts()
+            
+        #if 'sra_study' in tpm_table.columns :
+        #    tpm_table.drop("sra_study", axis=1, inplace=True)
+          
+        #if 'tissue_super' in tpm_table.columns :
+        #    tpm_table.drop("tissue_super", axis=1, inplace=True)
+            
+        #if 'perturbation_group' in tpm_table.columns :
+        #    tpm_table.drop("perturbation_group", axis=1, inplace=True)
+          
+        if 'secondary_perturbation' in tpm_table.columns :
+            tpm_table.drop("secondary_perturbation", axis=1, inplace=True)
     
-    plot_1(embedding_pca_cosine, perturbations['perturbation_group'], title='t-SNE plot of perturbation groups')
-    plot_1(embedding_pca_cosine, tissues['tissue_super'], title='t-SNE plot of tissue types')
-    plot_1(embedding_pca_cosine, sra_studies['sra_study'], draw_legend=False, title='t-SNE plot of batches')
+        #tpm_table = tpm_table.drop(columns=[col for col in tpm_table if col.split('.')[0] not in genes_list])
+        
+        print('Drawing plots for ' + measurement['tpm_path'])
+        
+        save_tsne(tpm_table, measurement['display_name'])
     
-    #open_TSNE_plot(data_log, perturbations, 'perturbation_group', tissues, 'tissue_super')
-    #open_TSNE_plot(data_log, tissues, 'tissue_super', perturbations, 'perturbation_group')
-    #TSNE_plot(data_log, tissues, 'tissue_super', perturbations, 'perturbation_group')
-    #UMAP_plot(data_log, tissues, 'tissue_super', perturbations, 'perturbation_group')
+        

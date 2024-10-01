@@ -9,9 +9,11 @@ import pandas as pd
 
 import global_values as gv
 
-tpm_table = pd.read_table('data/limma_test.tsv', sep='\t', index_col=0)
-metadata_table = pd.read_table(gv.GROUPED_DATA, sep='\t', index_col=0)[['perturbation_group', 'tissue_super', 'sra_study']]
+tpm_table = pd.read_table(gv.GROUPED_DATA, sep='\t', index_col=0)
+#metadata_table = pd.read_table(gv.GROUPED_DATA, sep='\t', index_col=0)[['perturbation_group', 'tissue_super', 'sra_study']]
+metadata_table = tpm_table[['perturbation_group', 'tissue_super', 'sra_study']]
 
+tpm_table = tpm_table.drop(['perturbation_group', 'tissue_super', 'sra_study'], axis=1)
 
 keep_columns = []
 rename_cols = {}
@@ -32,4 +34,4 @@ tpm_table = tpm_table[keep_columns]
 tpm_table = metadata_table.join(tpm_table, how='inner')
 
 
-tpm_table.to_csv('data/limma_data.tsv', sep="\t")
+tpm_table.to_csv('data/grouped_tpm_avg.tsv', sep="\t")

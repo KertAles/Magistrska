@@ -22,7 +22,18 @@ from tabulate import tabulate
 def get_model_identifier(loss, transformation, target, otherClass, split_isoforms, special_id='', model_type='baseline') :
     return f'{model_type}_{"splitIsoforms_" if split_isoforms else "_"}{special_id}_{loss}_{transformation}_{target}{"_otherVector" if otherClass else "_noOtherVector"}'
 
-def predict_model(data_path, metadata_path=None, split_batches=True, model_type='baseline', loss='crossentropy', transformation='log2', target='both', include_other_class=False, split_isoforms=False, special_id='') :
+def predict_model(data_path,
+                  metadata_path=None,
+                  split_batches=True,
+                  test_batches = [],
+                  return_scores = False,
+                  model_type='baseline',
+                  loss='crossentropy',
+                  transformation='log2',
+                  target='both',
+                  include_other_class=False,
+                  split_isoforms=False,
+                  special_id='') :
     
     isoforms_file = open(gv.ISOFORM_COUNT_PATH, 'r')
     isoform_count = []
@@ -32,15 +43,16 @@ def predict_model(data_path, metadata_path=None, split_batches=True, model_type=
             num_isoforms = int(line.split('\t')[1])
             isoform_count.append(num_isoforms)
 
-    model_id = get_model_identifier(loss, transformation, target, include_other_class, split_isoforms, special_id)
+    model_id = get_model_identifier(loss, transformation, target, include_other_class, split_isoforms, special_id, model_type=model_type)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     if split_batches :
-        test_file = open('test_batches.txt', 'r')
-        test_batches = []
-        
-        for batch in test_file:
-            test_batches.append(batch[:-1])
+        if len(test_batches) == 0 :
+            test_file = open('test_batches.txt', 'r')
+            test_batches = []
+            
+            for batch in test_file:
+                test_batches.append(batch[:-1])
             
         dataset = NonPriorData(tpm_path=data_path,
                                metadata_path=metadata_path,
@@ -210,6 +222,9 @@ def predict_model(data_path, metadata_path=None, split_batches=True, model_type=
         cf_matrix = confusion_matrix(y_true, y_pred)
         class_report = metrics.classification_report(y_true, y_pred)
         
+        if return_scores :
+            class_report_dict = metrics.classification_report(y_true, y_pred, output_dict=True)
+        
         classification_report = open(f'{gv.RESULTS_PATH}/report_{model_id}.txt', 'w')
         classification_report.write(class_report)
         classification_report.write('\n')
@@ -240,6 +255,12 @@ def predict_model(data_path, metadata_path=None, split_batches=True, model_type=
         class_report_tissue = metrics.classification_report(y_true_tissue, y_pred_tissue)
         class_report_perturbation = metrics.classification_report(y_true_perturbation, y_pred_perturbation)
         
+        if return_scores :
+            class_report_tissue_dict = metrics.classification_report(y_true_tissue, y_pred_tissue, output_dict=True)
+            class_report_perturbation_dict = metrics.classification_report(y_true_perturbation, y_pred_perturbation, output_dict=True)
+            
+            class_report_dict = [class_report_tissue_dict, class_report_perturbation_dict]
+            
         classification_report = open(f'{gv.RESULTS_PATH}/report_{model_id}.txt', 'w')
         classification_report.write(class_report_tissue)
         classification_report.write('\n')
@@ -262,7 +283,10 @@ def predict_model(data_path, metadata_path=None, split_batches=True, model_type=
     #       'mature_seedling', 'seed_seed', 'senescence_senescence_green',
     #       'senescence_senescence_reproductive', 'young_seed',
     #       'young_seedling']))
-    
+    if return_scores :
+        return class_report_dict
+    else :
+        return None
 
 if __name__ == '__main__':
     loss='focal'

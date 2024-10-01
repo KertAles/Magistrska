@@ -1,25 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Sep 10 17:07:19 2024
+Created on Wed Sep 11 13:04:25 2024
 
 @author: alesk
 """
 
 import pandas as pd
 import numpy as np
-from combat.pycombat import pycombat
 import global_values as gv
+
+from inmoose.pycombat.pycombat_seq import pycombat_seq
 
 data = pd.read_table(gv.GROUPED_DATA, index_col=0)
 
-studies = data['sra_study']
+batches = data['sra_study'].values
+
 data = data.drop(columns=['perturbation_group', 'tissue_super', 'sra_study'])
 
-data = data.dropna()
-
-data = data.apply(np.log1p)
 data = data.transpose()
-#data = data.values
-studies = studies.values
 
-corrected = pycombat(data, studies)
+
+corrected = pycombat_seq(data, batches)
+pi

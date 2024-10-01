@@ -276,16 +276,16 @@ if __name__ == '__main__':
     tissues_first = pd.concat(tiss_list)
     sra_first = pd.concat(sra_list)
     
-    proportional_data = pd.concat([first_group, perturbations_first, tissues_first, sra_first], axis=1)
-    proportional_data.to_csv(gv.PROPORTIONAL_DATA_CONTROLS, sep="\t")
+    #proportional_data = pd.concat([first_group, perturbations_first, tissues_first, sra_first], axis=1)
+    #proportional_data.to_csv(gv.PROPORTIONAL_DATA_CONTROLS, sep="\t")
     
-    first_group = first_group.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
-    tissues_first = tissues_first.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
-    sra_first = sra_first.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
-    perturbations_first = perturbations_first.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
+    #first_group = first_group.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
+    #tissues_first = tissues_first.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
+    #sra_first = sra_first.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
+    #perturbations_first = perturbations_first.drop(perturbations_first[perturbations_first['perturbation_group'] == 'control'].index)
 
-    proportional_data = pd.concat([first_group, perturbations_first, tissues_first, sra_first], axis=1)
-    proportional_data.to_csv(gv.PROPORTIONAL_DATA_NO_CONTROLS, sep="\t")
+    #proportional_data = pd.concat([first_group, perturbations_first, tissues_first, sra_first], axis=1)
+    #proportional_data.to_csv(gv.PROPORTIONAL_DATA_NO_CONTROLS, sep="\t")
     
     """
     chosen_rank = 0
@@ -323,6 +323,8 @@ if __name__ == '__main__':
     
     plot(embedding_pca_cosine, perturbations_first['perturbation_group'],
                      tissues_first['tissue_super'], draw_legend=True)
+    plot(embedding_pca_cosine, tissues_first['tissue_super'], perturbations_first['perturbation_group'],
+                      draw_legend=True)
     #perturbations_first = first_group.loc[:, first_group.columns == "perturbation_group"]
     #tissues_first = first_group.loc[:, first_group.columns == "tissue_super"]
     

@@ -25,7 +25,7 @@ qc_dict = {}
 for index, row in qc_data.iterrows() : 
     qc_dict[row['srr']] = row['value']
 
-
+"""
 ckn_file = open('./data/CKN_gene_ranks.txt', 'r')
 genes_list = ['SRR_accession']
 gene_positions = {}
@@ -40,7 +40,7 @@ for line in ckn_file :
         i += 1
         
 vect_len = len(gene_positions)
-
+"""
 
 file_in = open('./data/athaliana_se.tsv', 'r')
 file_out = open('./data/athaliana_trimmed_3.tsv', 'w')

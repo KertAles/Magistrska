@@ -27,7 +27,7 @@ class NonPriorData(Dataset) :
         #tpm_table = tpm_table[tpm_table['perturbation_group'].notin(['control', 'chemical stress'])]
         
         if metadata_path is not None :
-            metadata_table = pd.read_table(metadata_path, index_col=1)
+            metadata_table = pd.read_table(metadata_path, index_col=0)
             metadata_table = metadata_table.rename(columns={'SRAStudy' : 'sra_study'})
             metadata_table = metadata_table[['perturbation_group', 'tissue_super', 'sra_study']]
             tpm_table = metadata_table.join(tpm_table, how='inner')
@@ -93,7 +93,7 @@ class NonPriorData(Dataset) :
             data_raw.drop("secondary_perturbation", axis=1, inplace=True)
         
         tpm_cols = pd.read_table('data/columns.tsv')
-        data_raw = data_raw[data_raw.columns.intersection(tpm_cols.columns)]
+        #data_raw = data_raw[data_raw.columns.intersection(tpm_cols.columns)]
         
         self.num_of_genes = len(data_raw.columns)
         self.columns = data_raw.columns
