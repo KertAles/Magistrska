@@ -4,19 +4,8 @@ Created on Mon Apr 22 13:30:13 2024
 
 @author: alesk
 """
-import random
-import math 
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import os
-from pathlib import Path
 import pandas as pd
-
-from load_tpm_data import NonPriorData
-from torch.utils.data import DataLoader, random_split
-from tqdm import tqdm
 
 import global_values as gv
 from scipy.spatial.distance import pdist, squareform
@@ -90,14 +79,16 @@ def measure_batch_effect(tpm_table, categories, categories_count, category_name,
 if __name__ == '__main__':
     
     measurements = [
-            #{'tpm_path' : gv.GROUPED_DATA, 'T' : False, 'meta_path' : None},
-            #{'tpm_path' : './data/athaliana_annotated.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
-            #{'tpm_path' : './data/combat.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv'},
-            #{'tpm_path' : './data/combat_seq.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv'},
-            #{'tpm_path' : './data/vae_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
-            #{'tpm_path' : './data/vae_latent.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'}, 
-            #{'tpm_path' : './data/vae_cov_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
-            #{'tpm_path' : './data/vae_cov_latent.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'}, 
+            {'tpm_path' : './data/limma_test.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            {'tpm_path' : './data/vae_cov_transformed_filtered.tsv', 'T' : False, 'meta_path' : None},
+            {'tpm_path' : gv.PROPORTIONAL_DATA_CONTROLS, 'T' : False, 'meta_path' : None},
+            {'tpm_path' : './data/athaliana_annotated.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            {'tpm_path' : './data/combat.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv'},
+            {'tpm_path' : './data/combat_seq.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv'},
+            {'tpm_path' : './data/vae_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            {'tpm_path' : './data/vae_latent.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'}, 
+            {'tpm_path' : './data/vae_cov_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
+            {'tpm_path' : './data/vae_cov_latent.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'}, 
             {'tpm_path' : './data/vae_cov_transformed_smol.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv'},
             ]
     f = open('./data/BE_measures_cosine.txt', 'a')
@@ -108,36 +99,7 @@ if __name__ == '__main__':
         
         if measurement['T'] :
             tpm_table = tpm_table.T
-        
-        #if measurement['meta_path'] is not None:
-        #    metadata_table = pd.read_table(measurement['meta_path'], index_col=0)
-            
-        #    tpm_table = tpm_table.join(metadata_table, how='inner')
-        
-        """
-        batch_count = tpm_table['sra_study'].value_counts()
-        chosen_batches = []
 
-        for batch in batch_count.index :
-            batch_data = tpm_table[tpm_table['sra_study'] == batch]
-            
-            if 'control' not in batch_data['perturbation_group'].unique() or 'chemical stress' not in batch_data['perturbation_group'].unique():
-                continue
-            
-            chosen_batches.append(batch)
-        
-        tpm_table = tpm_table[tpm_table['sra_study'].isin(chosen_batches)]
-        tpm_table = tpm_table[tpm_table['perturbation_group'].isin(['control', 'chemical stress'])]
-        """
-        """
-        rank_file = open(gv.CKN_GENE_RANKS, 'r')
-        genes_list = []
-
-        for line in rank_file:
-            gene_rank = int(line.split('\t')[1])
-            if gene_rank <= chosen_rank :
-                genes_list.append(line.split('\t')[0])
-        """            
         
         if measurement['meta_path'] == None :
             perturbation_count = tpm_table['perturbation_group'].value_counts()

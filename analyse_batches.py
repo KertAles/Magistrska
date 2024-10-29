@@ -5,21 +5,19 @@ Created on Sun Mar  3 20:49:22 2024
 @author: alesk
 """
 
-import math
 import numpy as np
-import torch
-from torch.utils.data import Dataset
 import pandas as pd
-from sklearn import preprocessing
-from load_tpm_data import NonPriorData
+from openTSNE import affinity
+from openTSNE import initialization, TSNEEmbedding
 
-from data_dim_reduction_plotting import plot
 
+from tsne_plotting import plot
 import global_values as gv
+
 #metadata_table = pd.read_table(gv.METADATA_PATH)
 #batch_count = metadata_table['SRAStudy'].value_counts()
 
-tpm_table = pd.read_table(gv.JOINED_DATA)
+tpm_table = pd.read_table(gv.GROUPED_DATA)
 tpm_table.set_index('SRR_accession', inplace=True)
 
 idx_list = tpm_table.index[tpm_table['sra_study'] == "SRP151817"].tolist()
@@ -42,10 +40,6 @@ data_raw = data_raw.values
 #perturbations = perturbation_raw.values
 
 data_log = np.log10(data_raw + 1)
-
-import openTSNE
-from openTSNE import affinity
-from openTSNE import initialization, TSNEEmbedding
 
 
 affinities = affinity.Multiscale(

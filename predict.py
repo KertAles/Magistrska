@@ -8,19 +8,17 @@ Created on Sun Dec 17 17:40:02 2023
 
 from sklearn.metrics import confusion_matrix
 from sklearn import metrics
-from training import FCN, FCN_CKN
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader, random_split
-
-import global_values as gv
-from load_tpm_data import NonPriorData
-import numpy as np
-
 from tabulate import tabulate
 
-def get_model_identifier(loss, transformation, target, otherClass, split_isoforms, special_id='', model_type='baseline') :
-    return f'{model_type}_{"splitIsoforms_" if split_isoforms else "_"}{special_id}_{loss}_{transformation}_{target}{"_otherVector" if otherClass else "_noOtherVector"}'
+import global_values as gv
+from training import FCN, FCN_CKN
+from load_tpm_data import NonPriorData
+from utils import get_model_identifier
+
+
 
 def predict_model(data_path,
                   metadata_path=None,
@@ -33,7 +31,8 @@ def predict_model(data_path,
                   target='both',
                   include_other_class=False,
                   split_isoforms=False,
-                  special_id='') :
+                  special_id='',
+                  fold=1) :
     
     isoforms_file = open(gv.ISOFORM_COUNT_PATH, 'r')
     isoform_count = []
@@ -44,8 +43,12 @@ def predict_model(data_path,
             isoform_count.append(num_isoforms)
 
     model_id = get_model_identifier(loss, transformation, target, include_other_class, split_isoforms, special_id, model_type=model_type)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
+    if model_type == 'baseline' :
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else :
+        device = torch.device('cpu')
+        
     if split_batches :
         if len(test_batches) == 0 :
             test_file = open('test_batches.txt', 'r')
@@ -54,11 +57,19 @@ def predict_model(data_path,
             for batch in test_file:
                 test_batches.append(batch[:-1])
             
-        dataset = NonPriorData(tpm_path=data_path,
-                               metadata_path=metadata_path,
-                               transformation=transformation,
-                               target='both',
-                               batches=test_batches)  
+        if include_other_class :
+            dataset = NonPriorData(tpm_path=data_path,
+                                   metadata_path=metadata_path,
+                                   transformation=transformation,
+                                   target='both',
+                                   batches=test_batches)  
+        else :
+            dataset = NonPriorData(tpm_path=data_path,
+                                   metadata_path=metadata_path,
+                                   transformation=transformation,
+                                   target=target,
+                                   batches=test_batches)  
+        
     else :
         if include_other_class :
             dataset = NonPriorData(tpm_path=data_path,
@@ -88,69 +99,94 @@ def predict_model(data_path,
         
         num_of_tissues = 0
         
-        model = FCN_CKN(output_size=perturbation_output_size + tissue_output_size, columns=dataset.columns.tolist())
-        num_of_tissues = tissue_output_size
+        #model = FCN_CKN(output_size=perturbation_output_size + tissue_output_size, columns=dataset.columns.tolist())
+        #num_of_tissues = tissue_output_size
     else :
         first_output_size = len(dataset.onehot.categories_[0])
         second_output_size = 0
         num_of_tissues = 0
         
-        input_size = first_output_size
+        #input_size = first_output_size
         num_of_tissues = first_output_size
 
-    
     if model_type == 'baseline' :
         if include_other_class :
             if target == 'tissue' :
                 model = FCN(input_size=input_size,
-                            output_size=tissue_output_size,
+                               output_size=tissue_output_size,
                                include_other_class=include_other_class,
                                other_vector_size=perturbation_output_size,
                                isoforms_count=isoform_count)
             elif target == 'perturbation' :
                 model = FCN(input_size=input_size,
-                            output_size=perturbation_output_size,
-                               include_other_class=include_other_class,
-                               other_vector_size=tissue_output_size,
-                               isoforms_count=isoform_count)
-        else :
-            if target != 'both' :
-                model = FCN(input_size=input_size,
-                            output_size=first_output_size,
-                               include_other_class=include_other_class,
-                               other_vector_size=second_output_size,
-                               isoforms_count=isoform_count)
-            elif target == 'both' :
-                model = FCN(input_size=input_size,
-                            output_size=perturbation_output_size + tissue_output_size,
-                               include_other_class=False,
-                               isoforms_count=isoform_count)
-                num_of_tissues = tissue_output_size
-    elif model_type == 'ckn' :
-        if include_other_class :
-            if target == 'tissue' :
-                model = FCN_CKN(output_size=tissue_output_size, columns=dataset.columns.tolist(), dropout=0.2)
-               
-            elif target == 'perturbation' :
-                model = FCN_CKN(input_size=input_size,
                                output_size=perturbation_output_size,
                                include_other_class=include_other_class,
                                other_vector_size=tissue_output_size,
                                isoforms_count=isoform_count)
         else :
             if target != 'both' :
-                model = FCN_CKN(output_size=first_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+                model = FCN(input_size=input_size,
+                               output_size=first_output_size,
+                               include_other_class=include_other_class,
+                               other_vector_size=second_output_size,
+                               isoforms_count=isoform_count)
+            elif target == 'both' :
+                model = FCN(input_size=input_size,
+                               output_size=perturbation_output_size + tissue_output_size,
+                               include_other_class=False,
+                               isoforms_count=isoform_count)
+                num_of_tissues = tissue_output_size
+                
+        model.to(device=device)
+
+    elif model_type == 'ckn':
+        if include_other_class :
+            if target == 'tissue' :
+                model = FCN_CKN(num_genes=input_size,
+                                   output_size=tissue_output_size,
+                                   device=device,
+                                   split_isoforms=split_isoforms,
+                                   include_other_class=include_other_class,
+                                   other_vector_size=perturbation_output_size,
+                                   columns=dataset.columns.tolist(),
+                                   dropout=0.2)
+               
+            elif target == 'perturbation' :
+                model = FCN_CKN(num_genes=input_size,
+                                   output_size=perturbation_output_size,
+                                   device=device,
+                                   split_isoforms=split_isoforms,
+                                   include_other_class=include_other_class,
+                                   other_vector_size=tissue_output_size,
+                                   columns=dataset.columns.tolist(),
+                                   dropout=0.2)
+        else :
+            if target != 'both' :
+                model = FCN_CKN(num_genes=input_size,
+                                   output_size=first_output_size,
+                                   device=device,
+                                   split_isoforms=split_isoforms,
+                                   include_other_class=include_other_class,
+                                   other_vector_size=second_output_size,
+                                   columns=dataset.columns.tolist(),
+                                   dropout=0.2)
                
             elif target == 'both' :
-                model = FCN_CKN(output_size=perturbation_output_size + tissue_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+                model = FCN_CKN(num_genes=input_size,
+                                   output_size=perturbation_output_size + tissue_output_size,
+                                   device=device,
+                                   split_isoforms=split_isoforms,
+                                   include_other_class=include_other_class,
+                                   columns=dataset.columns.tolist(),
+                                   dropout=0.2)
                 num_of_tissues = tissue_output_size
 
-    model.load_state_dict(torch.load(f'{gv.MODELS_PATH}/model_{model_id}.pt'))
+    model.load_state_dict(torch.load(f'{gv.MODELS_PATH}/model_{model_id}_{str(fold)}.pt'))
     model.to(device=device)
     model.eval()
     
     
-    loader_args = dict(batch_size=1, num_workers=1, pin_memory=True)
+    loader_args = dict(batch_size=1, pin_memory=True)
     test_loader = DataLoader(dataset, shuffle=False, drop_last=True, **loader_args)
     
     num_test_batches = len(test_loader)

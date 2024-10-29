@@ -5,12 +5,8 @@ Created on Sat Dec 16 13:18:53 2023
 @author: alesk
 """
 
-import math
 import numpy as np
-import torch
-from torch.utils.data import Dataset
 import pandas as pd
-from sklearn import preprocessing
 
 import global_values as gv
 
@@ -54,37 +50,15 @@ def process_data(tpm_table_T, metadata_table, save_path, group_tissues=False, se
     
     joined_table.to_csv(save_path, sep="\t")
     
+    #batch_count = joined_table['sra_study'].value_counts()
     
-    batch_count = joined_table['sra_study'].value_counts()
-    
-    """
-    chosen_batches = []
-    i = 0
-    for batch in batch_count.index :
-        chosen_batches.append(batch)
-        i += 1
-        
-        if i > 40 :
-            break
-    
-    joined_table = joined_table[joined_table['sra_study'].isin(chosen_batches)]
-    """
-    """
-    joined_table[['perturbation_group', 'tissue_super', 'sra_study']].to_csv('data/metadata_limma_test.tsv', sep="\t")
-    joined_table = joined_table[joined_table.columns.difference(['perturbation_group', 'tissue_super', 'sra_study'])]
-    joined_table = joined_table.apply(lambda x: np.log1p(x))
-    
-    joined_table.to_csv('data/limma_log1p_data.tsv', sep="\t")
-    """
 if __name__ == '__main__':
     
     datasets = [
-        #{'path': gv.JOINED_DATA, 'group': False, 'extend': False},
+        {'path': gv.JOINED_DATA, 'group': False, 'extend': False},
         {'path': gv.GROUPED_DATA, 'group': True, 'extend': False},
-        #{'path': gv.EXTENDED_DATA, 'group': False, 'extend': True},
-        #{'path': gv.EXTENDED_GROUPED_DATA, 'group': True, 'extend': True}
-        #{'path': './data/harmony_joined.tsv', 'group': True, 'extend': False},
-        #{'path': './data/vae_joined.tsv', 'group': True, 'extend': False},
+        {'path': gv.EXTENDED_DATA, 'group': False, 'extend': True},
+        {'path': gv.EXTENDED_GROUPED_DATA, 'group': True, 'extend': True},
         ]
     
     #tpm_table = pd.read_table('./data/harmony.tsv')

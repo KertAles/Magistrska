@@ -5,9 +5,7 @@ Created on Tue Dec 12 12:09:08 2023
 @author: alesk
 """
 
-import math
 import numpy as np
-import torch
 from torch.utils.data import Dataset
 import pandas as pd
 from sklearn import preprocessing
@@ -55,11 +53,7 @@ class NonPriorData(Dataset) :
             
             print(self.onehot_tissue.categories_)
             print(self.onehot_perturbation.categories_)
-        
-        max_val = tpm_table[tpm_table.columns.difference(['perturbation_group', 'tissue_super', 'secondary_perturbation', 'sra_study'])].max(axis=None)
-        min_val = tpm_table[tpm_table.columns.difference(['perturbation_group', 'tissue_super', 'secondary_perturbation', 'sra_study'])].min(axis=None)
-        max_val -= min_val
-        
+
         if len(batches) > 0 :
             tpm_table = tpm_table[tpm_table['sra_study'].isin(batches)]
         
@@ -92,13 +86,18 @@ class NonPriorData(Dataset) :
         if 'secondary_perturbation' in data_raw.columns :
             data_raw.drop("secondary_perturbation", axis=1, inplace=True)
         
-        tpm_cols = pd.read_table('data/columns.tsv')
+        #tpm_cols = pd.read_table('data/columns.tsv')
         #data_raw = data_raw[data_raw.columns.intersection(tpm_cols.columns)]
         
         self.num_of_genes = len(data_raw.columns)
         self.columns = data_raw.columns
         
-        data_raw = data_raw.values
+        data_raw = data_raw.values * 492263.0
+        
+        max_val = np.max(data_raw)
+        min_val = np.min(data_raw)
+        max_val -= min_val
+        
         if self.target != 'both' :
             gt_raw = gt_raw.values
         else :
@@ -128,14 +127,15 @@ class NonPriorData(Dataset) :
         print(np.max(self.data))
         print(np.min(self.data))
         
+        print(max_val)
         #max_val = np.max(self.data)
         #max_val = 2.9
         if self.transformation == 'none' :
-            self.data /= max_val
+            self.data /= 10.5
         elif self.transformation == 'log10' :
-            self.data /= max_val
+            self.data /= 10.5
         elif self.transformation == 'log2' :
-            self.data /= max_val
+            self.data /= 10.5
     def __len__(self):
         return self.data.shape[0] 
         

@@ -5,82 +5,110 @@ Created on Tue Dec 12 12:07:44 2023
 @author: alesk
 """
 
-# Based on: https://gym.openai.com/evaluations/eval_EIcM1ZBnQW2LBaFN6FY65g/
-import random
-import math 
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import os
 from pathlib import Path
-
-from load_tpm_data import NonPriorData
-from torch.utils.data import DataLoader, random_split
-from tqdm import tqdm
-
-import global_values as gv
+from sparselinear import SparseLinear
 from tabulate import tabulate
 from sklearn.metrics import confusion_matrix
 from sklearn import metrics
+from torch.utils.data import DataLoader, random_split
+from tqdm import tqdm
+
+from load_tpm_data import NonPriorData
+import global_values as gv
+from utils import get_model_identifier
+
 
 
 class FCN_CKN(nn.Module):
-    def __init__(self, output_size=6, tf_groups_file='data/tf_groups.txt', binding_groups_file='data/binding_groups.txt', columns=[], dropout=0.1):
+    def __init__(self, num_genes, output_size=6, device=None, split_isoforms=False, include_other_class=False, other_vector_size=0, tf_groups_file='data/tf_groups.txt', binding_groups_file='data/binding_groups.txt', columns=[], dropout=0.1):
         super().__init__()
         
         tf_file = open(tf_groups_file, 'r')
         
-        groups = []
+        self.split_isoforms = split_isoforms
+        
+        groups1 = []
         for line in tf_file :
             genes = line[:-1].split('\t')
-            groups.append([columns.index(gene) for gene in genes if gene in columns])
+            if self.split_isoforms :
+                isoforms = []
+                for gene in genes :
+                    isoforms.extend([col for col in columns if gene in col])
+                groups1.append([columns.index(iso) for iso in isoforms])
+            else :
+                groups1.append([columns.index(gene) for gene in genes if gene in columns])
         
-        self.tf_groups = groups
+        self.tf_groups = groups1
         tf_file.close()
         
         bindings_file = open(binding_groups_file, 'r')
         
-        groups = []
+        groups2 = []
         for line in bindings_file :
             genes = line[:-1].split('\t')
-            groups.append([columns.index(gene) for gene in genes if gene in columns])
+            if self.split_isoforms :
+                isoforms = []
+                for gene in genes :
+                    isoforms.extend([col for col in columns if gene in col])
+                groups2.append([columns.index(iso) for iso in isoforms])
+            else :
+                groups2.append([columns.index(gene) for gene in genes if gene in columns])
         
-        self.binding_groups = groups
+        self.binding_groups = groups2
         bindings_file.close()
         
-        
+        out_feature_idx = 0
+        sparse_indices = []
         num_of_tf_groups = 0
         self.tf_fcs = nn.ModuleList()
         for tf_group in self.tf_groups :
             num_of_tf_groups += 1
-            self.tf_fcs.append(nn.Linear(len(tf_group), 1))
+            sparse_indices.extend([[out_feature_idx, gene_idx] for gene_idx in tf_group])
+            #self.tf_fcs.append(nn.Linear(len(tf_group), 1))
+            out_feature_idx += 1
         
         
         num_of_binding_groups = 0
         self.binding_fcs = nn.ModuleList()
         for binding_group in self.binding_groups :
             num_of_binding_groups += 1
-            self.binding_fcs.append(nn.Linear(len(binding_group), 1))
+            #self.binding_fcs.append(nn.Linear(len(binding_group), 1))
+            sparse_indices.extend([[out_feature_idx, gene_idx] for gene_idx in binding_group])
+            out_feature_idx += 1
         
         input_size = num_of_tf_groups + num_of_binding_groups
+        self.connectivity = torch.LongTensor(sparse_indices).T
+        self.connectivity = self.connectivity.to(device)
+        self.ckn_layer = SparseLinear(num_genes, input_size, connectivity=self.connectivity)
         
+        
+        self.leaky0 = nn.LeakyReLU(0.05)
         self.fc1 = nn.Linear(input_size, 512)
         self.bn1 = nn.BatchNorm1d(512)
+        self.leaky1 = nn.LeakyReLU(0.05)
         self.do1 = nn.Dropout(p=dropout)
         self.fc2 = nn.Linear(512, 256)
         self.bn2 = nn.BatchNorm1d(256)
+        self.leaky2 = nn.LeakyReLU(0.05)
         self.do2 = nn.Dropout(p=dropout)
         self.fc3 = nn.Linear(256, 128)
         self.bn3 = nn.BatchNorm1d(128)
+        self.leaky3 = nn.LeakyReLU(0.05)
         self.do3 = nn.Dropout(p=dropout)
-        self.fc4 = nn.Linear(128, output_size)
+        if include_other_class :
+            self.fc4 = nn.Linear(128 + other_vector_size, output_size)
+        else :
+            self.fc4 = nn.Linear(128, output_size)
+            
+        self.include_other_class = include_other_class
         
-        self.leaky = nn.LeakyReLU(0.05)
         
         
     def forward(self, x, vector_other=None, tissues_size=0):
-        
+        """
         group_stack = []
         for tf_fc, tf_group in zip(self.tf_fcs, self.tf_groups) :
             group_stack.append(tf_fc(x[:, tf_group]))
@@ -89,19 +117,24 @@ class FCN_CKN(nn.Module):
             group_stack.append(binding_fc(x[:, binding_group]))
         
         x = torch.cat(group_stack, 1) 
+        """
         
+        x = self.ckn_layer(x)
+        x = self.leaky0(x)
         x = self.fc1(x)
         x = self.bn1(x)
-        x = self.leaky(x)
+        x = self.leaky1(x)
         x = self.do1(x)
         x = self.fc2(x)
         x = self.bn2(x)
-        x = self.leaky(x)
+        x = self.leaky2(x)
         x = self.do2(x)
         x = self.fc3(x)
         x = self.bn3(x)
-        x = self.leaky(x)
+        x = self.leaky3(x)
         x = self.do3(x)
+        if self.include_other_class :
+            x = torch.cat((x, vector_other), 1)
         x = self.fc4(x)
         if tissues_size > 0 :
             x = torch.cat([x[:, :tissues_size],
@@ -120,20 +153,41 @@ class FCN(nn.Module):
         self.isoforms_count = isoforms_count
         if len(self.isoforms_count) != 0 :
             num_of_isoforms = 0
+            i = 0
+            sparse_indices = []
             self.isoforms_fcs = nn.ModuleList()
-            for isoform in isoforms_count :
+            for isoform_count in isoforms_count :
+                sparse_indices.extend([[num_of_isoforms, gene_idx] for gene_idx in range(i, i+isoform_count)])
+                i += isoform_count
                 num_of_isoforms += 1
-                self.isoforms_fcs.append(nn.Linear(isoform, 1))
-            input_size = num_of_isoforms
             
+            self.connectivity = torch.LongTensor(sparse_indices).T
+            self.isoform_group_layer = SparseLinear(input_size, num_of_isoforms, connectivity=self.connectivity)
+            self.leaky0 = nn.LeakyReLU(0.05)
+            input_size = num_of_isoforms
+        """  
+        self.isoforms_count = isoforms_count
+        if len(self.isoforms_count) != 0 :
+            num_of_isoforms = 0
+            self.isoforms_fcs = nn.ModuleList()
+            for isoform_count in isoforms_count :
+                num_of_isoforms += 1
+                self.isoforms_fcs.append(nn.Linear(isoform_count, 1))
+            
+            self.leaky0 = nn.LeakyReLU(0.05)
+            input_size = num_of_isoforms
+        """
         self.fc1 = nn.Linear(input_size, 512)
         self.bn1 = nn.BatchNorm1d(512)
+        self.leaky1 = nn.LeakyReLU(0.05)
         self.do1 = nn.Dropout(p=dropout)
         self.fc2 = nn.Linear(512, 256)
         self.bn2 = nn.BatchNorm1d(256)
+        self.leaky2 = nn.LeakyReLU(0.05)
         self.do2 = nn.Dropout(p=dropout)
         self.fc3 = nn.Linear(256, 128)
         self.bn3 = nn.BatchNorm1d(128)
+        self.leaky3 = nn.LeakyReLU(0.05)
         self.do3 = nn.Dropout(p=dropout)
         if include_other_class :
             self.fc4 = nn.Linear(128 + other_vector_size, output_size)
@@ -141,11 +195,16 @@ class FCN(nn.Module):
             self.fc4 = nn.Linear(128, output_size)
         self.include_other_class = include_other_class
         
-        self.leaky = nn.LeakyReLU(0.05)
+        
         
         
     def forward(self, x, vector_other=None, tissues_size=0):
         
+        
+        if len(self.isoforms_count) != 0 :
+            x = self.isoform_group_layer(x)
+            x = self.leaky0(x)
+        """
         if len(self.isoforms_count) != 0 :
             grouped_isoforms = []
             i = 0
@@ -153,18 +212,19 @@ class FCN(nn.Module):
                 grouped_isoforms.append(fc(x[:, i:i+isoform_count]))
                 i += isoform_count
             x = torch.cat(grouped_isoforms, 1)
-            
+            x = self.leaky0(x)
+        """
         x = self.fc1(x)
         x = self.bn1(x)
-        x = self.leaky(x)
+        x = self.leaky1(x)
         x = self.do1(x)
         x = self.fc2(x)
         x = self.bn2(x)
-        x = self.leaky(x)
+        x = self.leaky2(x)
         x = self.do2(x)
         x = self.fc3(x)
         x = self.bn3(x)
-        x = self.leaky(x)
+        x = self.leaky3(x)
         x = self.do3(x)
         if self.include_other_class :
             x = torch.cat((x, vector_other), 1)
@@ -182,8 +242,10 @@ class FCN(nn.Module):
 class NonPriorTraining:
             
     def __init__(self, model_type='baseline', loss='crossentropy', transformation='none', target='tissue', include_other_class=False, gamma=2.0, split_isoforms=False, special_id=''):
-        
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if model_type == 'baseline' :
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else :
+            self.device = torch.device('cpu')
         print('Running on : ' + str(self.device))
         self.model_type = model_type
         self.special_id = special_id
@@ -205,6 +267,7 @@ class NonPriorTraining:
             for line in isoform_file:
                 num_isoforms = int(line.split('\t')[1])
                 self.isoform_count.append(num_isoforms)
+                
 
         if self.loss == 'crossentropy' or self.loss=='focal' :
             self.criterion = nn.CrossEntropyLoss()
@@ -212,10 +275,7 @@ class NonPriorTraining:
             self.criterion = nn.BCEWithLogitsLoss()
         
     def save_model(self, fold=1) :
-        torch.save(self.fcn.state_dict(), f'{gv.MODELS_PATH}/model_{self.get_model_identifier()}_{str(fold)}.pt')
-    
-    def get_model_identifier(self) :
-        return f'{self.model_type}_{"splitIsoforms_" if self.split_isoforms else "_"}{self.special_id}_{self.loss}_{self.transformation}_{self.target}{"_otherVector" if self.include_other_class else "_noOtherVector"}'
+        torch.save(self.fcn.state_dict(), f'{gv.MODELS_PATH}/model_{get_model_identifier()}_{str(fold)}.pt')
     
     
     def preprocess_state(self, state):
@@ -312,7 +372,7 @@ class NonPriorTraining:
             if len(train_batches) == 0 or len(val_batches) == 0 or len(test_batches) == 0 :
                 train_file = open('train_batches.txt', 'r')
                 val_file = open('val_batches.txt', 'r')
-                test_file = open('test_batches.txt', 'r')
+                #test_file = open('test_batches.txt', 'r')
                 
                 train_batches = []
                 val_batches = []
@@ -324,26 +384,32 @@ class NonPriorTraining:
                 for batch in val_file :
                     val_batches.append(batch[:-1])
                     
-                for batch in test_file :
-                    test_batches.append(batch[:-1])
+                #for batch in test_file :
+                #    test_batches.append(batch[:-1])
             
-                
-            train_set = NonPriorData(tpm_path=data_path,
-                                     metadata_path=metadata_path,
-                                     transformation=self.transformation,
-                                      target=self.target,
-                                      batches=train_batches)
-            val_set = NonPriorData(tpm_path=data_path,
-                                   metadata_path=metadata_path,
-                                     transformation=self.transformation,
-                                      target=self.target,
-                                      batches=val_batches)
+            if self.include_other_class :
+                train_set = NonPriorData(tpm_path=data_path,
+                                         metadata_path=metadata_path,
+                                         transformation=self.transformation,
+                                          target='both',
+                                          batches=train_batches)
+                val_set = NonPriorData(tpm_path=data_path,
+                                       metadata_path=metadata_path,
+                                         transformation=self.transformation,
+                                          target='both',
+                                          batches=val_batches)
+            else :
+                train_set = NonPriorData(tpm_path=data_path,
+                                         metadata_path=metadata_path,
+                                         transformation=self.transformation,
+                                          target=self.target,
+                                          batches=train_batches)
+                val_set = NonPriorData(tpm_path=data_path,
+                                       metadata_path=metadata_path,
+                                         transformation=self.transformation,
+                                          target=self.target,
+                                          batches=val_batches)
             
-            test_set = NonPriorData(tpm_path=data_path,
-                                   metadata_path=metadata_path,
-                                     transformation=self.transformation,
-                                      target=self.target,
-                                      batches=test_batches)
             
             dataset = train_set
             n_train = len(dataset)
@@ -369,19 +435,34 @@ class NonPriorTraining:
    
         
         
-        loader_args = dict(batch_size=batch_size, num_workers=1, pin_memory=True)
+        loader_args = dict(batch_size=batch_size, pin_memory=True)
         train_loader = DataLoader(train_set, shuffle=True, **loader_args)
         val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
-        test_loader = DataLoader(test_set, shuffle=False, drop_last=True, **loader_args)
+        #test_loader = DataLoader(test_set, shuffle=False, drop_last=True, **loader_args)
         
         
         
         if self.target != 'both' :
-            class_counts = np.zeros(len(dataset.onehot.categories_))
             
-            for batch in train_loader :
-                for label in batch['classification'][:, 0, :] :
-                    class_counts[label] += 1.0
+            if self.include_other_class :
+                if self.target == 'tissue' :
+                    class_counts = np.zeros(len(dataset.onehot_tissue.categories_[0]))
+                    
+                    for batch in train_loader :
+                        for label in batch['tissue'][:, 0, :] :
+                            class_counts[torch.argmax(label).data.cpu().numpy()] += 1.0
+                else :
+                    class_counts = np.zeros(len(dataset.onehot_perturbation.categories_[0]))
+                    
+                    for batch in train_loader :
+                        for label in batch['perturbation'][:, 0, :] :
+                            class_counts[torch.argmax(label).data.cpu().numpy()] += 1.0
+            else :
+                class_counts = np.zeros(len(dataset.onehot.categories_[0]))
+                
+                for batch in train_loader :
+                    for label in batch['classification'][:, 0, :] :
+                        class_counts[torch.argmax(label).data.cpu().numpy()] += 1.0
                     
             class_sum = np.sum(class_counts)
             class_counts /= class_sum
@@ -448,20 +529,44 @@ class NonPriorTraining:
         elif self.model_type == 'ckn':
             if self.include_other_class :
                 if self.target == 'tissue' :
-                    self.fcn = FCN_CKN(output_size=tissue_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+                    self.fcn = FCN_CKN(num_genes=input_size,
+                                       output_size=tissue_output_size,
+                                       device=self.device,
+                                       split_isoforms=self.split_isoforms,
+                                       include_other_class=self.include_other_class,
+                                       other_vector_size=perturbation_output_size,
+                                       columns=dataset.columns.tolist(),
+                                       dropout=0.2)
                    
                 elif self.target == 'perturbation' :
-                    self.fcn = FCN_CKN(input_size=input_size,
-                                   output_size=perturbation_output_size,
-                                   include_other_class=self.include_other_class,
-                                   other_vector_size=tissue_output_size,
-                                   isoforms_count=self.isoform_count)
+                    self.fcn = FCN_CKN(num_genes=input_size,
+                                       output_size=perturbation_output_size,
+                                       device=self.device,
+                                       split_isoforms=self.split_isoforms,
+                                       include_other_class=self.include_other_class,
+                                       other_vector_size=tissue_output_size,
+                                       columns=dataset.columns.tolist(),
+                                       dropout=0.2)
             else :
                 if self.target != 'both' :
-                    self.fcn = FCN_CKN(output_size=first_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+                    self.fcn = FCN_CKN(num_genes=input_size,
+                                       output_size=first_output_size,
+                                       device=self.device,
+                                       split_isoforms=self.split_isoforms,
+                                       include_other_class=self.include_other_class,
+                                       other_vector_size=second_output_size,
+                                       columns=dataset.columns.tolist(),
+                                       dropout=0.2)
                    
                 elif self.target == 'both' :
-                    self.fcn = FCN_CKN(output_size=perturbation_output_size + tissue_output_size, columns=dataset.columns.tolist(), dropout=0.2)
+                    self.fcn = FCN_CKN(num_genes=input_size,
+                                       output_size=perturbation_output_size + tissue_output_size,
+                                       device=self.device,
+                                       split_isoforms=self.split_isoforms,
+                                       include_other_class=self.include_other_class,
+                                       other_vector_size=perturbation_output_size,
+                                       columns=dataset.columns.tolist(),
+                                       dropout=0.2)
                     self.num_of_tissues = tissue_output_size
                     
         
@@ -488,7 +593,7 @@ class NonPriorTraining:
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[6,9], gamma=0.3)
         
         global_step = 0
-        self.f_loss = open(f'{gv.RESULTS_PATH}/loss_{self.get_model_identifier()}.txt', 'w')
+        self.f_loss = open(f'{gv.RESULTS_PATH}/loss_{get_model_identifier()}.txt', 'w')
         # 5. Begin training
         for epoch in range(1, epochs+1):
             self.fcn.train()
@@ -496,9 +601,13 @@ class NonPriorTraining:
             
             if self.target != 'both' :
                 weight = torch.Tensor(class_counts)
+                weight = weight.to(device=self.device)
             else :
                 weight_perturbation = torch.Tensor(perturbation_counts)
                 weight_tissue = torch.Tensor(tissue_counts)
+                
+                weight_perturbation = weight_perturbation.to(device=self.device)
+                weight_tissue = weight_tissue.to(device=self.device)
             
             with tqdm(total=n_train, desc=f'Epoch {epoch}/{epochs}', unit='img') as pbar:
                 k = 0
@@ -590,17 +699,17 @@ class NonPriorTraining:
             scheduler.step()
             val_score = self.evaluate(val_loader)
             print('Validation score: ' + str(val_score))
-            test_score = self.evaluate(test_loader)
-            print('Test score: ' + str(test_score))
+            #test_score = self.evaluate(test_loader)
+            #print('Test score: ' + str(test_score))
             
             self.f_loss.write(str(val_score))
             self.f_loss.write('\n')
             
-            self.predict_model(test_set, dataset, self.loss, self.transformation, self.target, self.include_other_class, self.split_isoforms)
+            #self.predict_model(test_set, dataset, self.loss, self.transformation, self.target, self.include_other_class, self.split_isoforms)
 
             if save_checkpoint:
                 Path(gv.CHECKPOINTS_PATH).mkdir(parents=True, exist_ok=True)
-                torch.save(self.fcn.state_dict(), f'{gv.CHECKPOINTS_PATH}/checkpoint_{self.get_model_identifier()}_{epoch}.pth')
+                torch.save(self.fcn.state_dict(), f'{gv.CHECKPOINTS_PATH}/checkpoint_{get_model_identifier()}_{epoch}.pth')
                 #logging.info(f'Checkpoint {epoch} saved!')
         self.f_loss.close()
     
@@ -642,14 +751,13 @@ class NonPriorTraining:
             
               
             if include_other_class or target == 'both' :
-                perturbation_output_size = len(dataset_oh.onehot_perturbation.categories_[0])
+                #perturbation_output_size = len(dataset_oh.onehot_perturbation.categories_[0])
                 tissue_output_size = len(dataset_oh.onehot_tissue.categories_[0])
                 
                 num_of_tissues = 0
                 num_of_tissues = tissue_output_size
             else :
                 first_output_size = len(dataset_oh.onehot.categories_[0])
-                second_output_size = 0
                 num_of_tissues = 0
                 
                 num_of_tissues = first_output_size
@@ -760,9 +868,9 @@ class NonPriorTraining:
 from torchsummary import summary        
         
 if __name__ == '__main__':
-    agent = NonPriorTraining(model_type = 'ckn', loss='focal', transformation='log2', target='secondary_perturbation', include_other_class=False, split_isoforms=False)
-    agent.train(gv.GROUPED_DATA)
-    agent.save_model()
+    agent = NonPriorTraining(model_type = 'baseline', loss='focal', transformation='log2', target='tissue', include_other_class=False, split_isoforms=False)
+    agent.train(gv.GROUPED_DATA, split_batches=False)
+    #agent.save_model()
     
-    fcn = FCN(output_size=5)
-    summary(fcn, input_size=(26234,), batch_size=2)
+    fcn = agent.fcn
+    summary(fcn, input_size=(48359,), batch_size=2)

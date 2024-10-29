@@ -5,16 +5,16 @@ Created on Mon Sep 16 15:05:16 2024
 @author: alesk
 """
 
-from batch_effect_measurement import measure_batch_effect
 import pandas as pd
-from data_dim_reduction_plotting import plot_tsne
+
+from batch_effect_measurement import measure_batch_effect
 import global_values as gv
 
 if __name__ == '__main__':
     
     measurements = [
             {'tpm_path' : gv.GROUPED_DATA, 'meta_path' : None, 'display_name' : 'Unprocessed data'},
-            {'tpm_path' : 'data/prop_gene_exp_adjusted.tsv', 'meta_path' : gv.METADATA_PROC_PATH}, 'display_name' : 'Proportional gene expression',
+            {'tpm_path' : 'data/prop_gene_exp_adjusted.tsv', 'meta_path' : gv.METADATA_PROC_PATH, 'display_name' : 'Proportional gene expression'},
             {'tpm_path' : 'data/combat_adjusted.tsv', 'meta_path' : gv.METADATA_PROC_PATH, 'display_name' : 'ComBat'},
             {'tpm_path' : 'data/combat-seq_adjusted.tsv', 'meta_path' : gv.METADATA_PROC_PATH, 'display_name' : 'ComBat-Seq'},
             {'tpm_path' : 'data/limma_adjusted.tsv', 'meta_path' : gv.METADATA_PROC_PATH, 'display_name' : 'Limma library method'},
@@ -42,6 +42,7 @@ if __name__ == '__main__':
         tpm_table = tpm_table[tpm_table['sra_study'].isin(chosen_batches)]
         tpm_table = tpm_table[tpm_table['perturbation_group'].isin(['control', 'chemical stress'])]
         """
+        
         rank_file = open(gv.CKN_GENE_RANKS, 'r')
         genes_list = []
 

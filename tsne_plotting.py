@@ -5,16 +5,10 @@ Created on Sun Jan 28 11:21:25 2024
 @author: alesk
 """
 
-import math
 import numpy as np
-import torch
-from torch.utils.data import Dataset
 import pandas as pd
 from sklearn import manifold
-from sklearn import preprocessing
-
 import seaborn as sns
-
 import openTSNE
 
 import global_values as gv
@@ -236,11 +230,6 @@ def TSNE_plot(data, labels1, target_name1, labels2, target_name2) :
     sns.pairplot(target_df1, hue=target_name1, height=16)
     sns.pairplot(target_df2, hue=target_name2, height=16)
 
-def UMAP_plot(data, labels1, target_name1, labels2, target_name2) :
-    mapper = umap.UMAP().fit(data)
-    umap.plot.points(mapper, labels=labels1[target_name1], width=600, height=600)
-    umap.plot.points(mapper, labels=labels2[target_name2], width=600, height=600)
-
 
 def open_TSNE_plot(data, labels1, target_name1, labels2, target_name2) :
     
@@ -286,8 +275,8 @@ def save_tsne(tpm_table, display_name) :
     tpm_table.drop("sra_study", axis=1, inplace=True)
 
     data_raw = tpm_table.values
-    data_log = np.log1p(data_raw)
-    #data_log=data_raw
+    #data_log = np.log1p(data_raw)
+    data_log=data_raw
     
     embedding_pca_cosine = openTSNE.TSNE(
     perplexity=30,
@@ -303,14 +292,16 @@ def save_tsne(tpm_table, display_name) :
 
 if __name__ == '__main__':
     measurements = [
-            #{'tpm_path' : gv.GROUPED_DATA, 'T' : False, 'meta_path' : None, 'display_name' : 'Unprocessed data'},
-            #{'tpm_path' : './data/athaliana_annotated.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'Unprocessed data 2'},
-            #{'tpm_path' : './data/combat.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'ComBat'},
-            #{'tpm_path' : './data/combat_seq.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'ComBat-seq'},
+            {'tpm_path' : gv.GROUPED_DATA, 'T' : False, 'meta_path' : None, 'display_name' : 'Unprocessed data'},
+            {'tpm_path' : gv.PROPORTIONAL_DATA_CONTROLS, 'T' : False, 'meta_path' : None, 'display_name' : 'Proportional gene expression'},
+            {'tpm_path' : './data/vae_cov_transformed_filtered.tsv', 'T' : False, 'meta_path' : None, 'display_name' : 'Data subset'},
+            {'tpm_path' : './data/athaliana_annotated.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'Unprocessed data 2'},
+            {'tpm_path' : './data/combat.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'ComBat'},
+            {'tpm_path' : './data/combat_seq.tsv', 'T' : True, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'ComBat-seq'},
             {'tpm_path' : './data/vae_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE'},
             {'tpm_path' : './data/vae_cov_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE w covariates'},
-            #{'tpm_path' : './data/vae_smol_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE smol'},
-            #{'tpm_path' : './data/vae_cov_transformed_smol.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE smol w/ covariates'},
+            {'tpm_path' : './data/vae_smol_transformed.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE smol'},
+            {'tpm_path' : './data/vae_cov_transformed_smol.tsv', 'T' : False, 'meta_path' : './data/metadata_T.tsv', 'display_name' : 'scVI VAE smol w/ covariates'},
             
         ]
 
