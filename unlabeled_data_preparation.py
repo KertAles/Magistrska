@@ -67,6 +67,18 @@ def process_unlabeled_gene_expression() :
             
     file_out.close()
         
+    
+def process_data_wrt_qc() :
+    qc_data = pd.read_table('./data/athaliana_qc.tsv')
+    qc_data = qc_data[qc_data['category'] == 'QcPassRate']
+    qc_data['value'] = qc_data['value'].apply(lambda x: float(x[:-1]))
+    
+    qc_data['value'] = qc_data[qc_data['value'] >= 99.0]
+    
+    tpm_table = pd.read_table('./data/athaliana_tpm.tsv')
+    tpm_table = tpm_table.join(qc_data, how='inner')
+    
+    tpm_table.to_csv('./data/athaliana_trimmed.tsv', sep="\t")
 
 def process_metadata(limit_models=False, limit_small_batches=False):
     
@@ -135,5 +147,5 @@ def process_metadata(limit_models=False, limit_small_batches=False):
 
 
 if __name__ == '__main__':
-    process_unlabeled_gene_expression()
+    #process_unlabeled_gene_expression()
     process_metadata()
